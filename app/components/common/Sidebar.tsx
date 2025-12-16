@@ -14,6 +14,10 @@ import {
   BarChart3,
   Settings,
   X,
+  User,
+  Tags,
+  DollarSign,
+  UserCheck,
 } from "lucide-react";
 
 type Role = "admin" | "receptionist";
@@ -83,6 +87,36 @@ export default function Sidebar({
         name: "Settings",
         href: "/dashboard/admin/settings",
         icon: Settings,
+        badge: null,
+      },
+      {
+        name: "Guest",
+        href: "/dashboard/admin/guest",
+        icon: User,
+        badge: null,
+      },
+      {
+        name: "Deals",
+        href: "/dashboard/admin/deals",
+        icon: Tags,
+        badge: null,
+      },
+      {
+        name: "Room",
+        href: "/dashboard/admin/room",
+        icon: Bed,
+        badge: null,
+      },
+      {
+        name: "Rate",
+        href: "/dashboard/admin/rate",
+        icon: DollarSign,
+        badge: null,
+      },
+      {
+        name: "Front desk",
+        href: "/dashboard/admin/frontdesk",
+        icon: UserCheck,
         badge: null,
       },
     ],
