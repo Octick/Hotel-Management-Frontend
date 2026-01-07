@@ -1,23 +1,27 @@
+// app/dashboard/admin/rooms/page.tsx
 "use client";
 
-import { useState } from "react";
-import { toast } from "react-toastify";
+import { useState, useEffect } from "react";
+import { toast } from "react-hot-toast"; // Switched to hot-toast for consistency
 import AdminReceptionistLayout from "../../../components/layout/AdminReceptionistLayout";
 import RoomFilters from "../../../components/rooms/RoomFilters";
 import RoomForm from "../../../components/rooms/RoomForm";
 import CheckInForm from "../../../components/rooms/CheckInForm";
 import RoomsList from "../../../components/rooms/RoomsList";
 import { Grid, List, Plus, Filter } from "lucide-react";
+import { auth } from "@/app/lib/firebase"; // Import Auth
 
 type RoomStatus =
-  | "available"
+  | "available" // Note: Frontend often uses lowercase, backend might send TitleCase. We map it below.
   | "occupied"
   | "reserved"
   | "cleaning"
   | "maintenance";
+
 type RoomType = "single" | "double" | "suite" | "family";
 
-interface Room {
+// Matches the structure used in your UI
+export interface Room {
   id: string;
   number: string;
   type: RoomType;
@@ -28,46 +32,15 @@ interface Room {
   floor: number;
 }
 
-// Sample rooms data
-const initialRooms: Room[] = [
-  {
-    id: "1",
-    number: "101",
-    type: "single",
-    status: "available",
-    rate: 50,
-    amenities: ["WiFi"],
-    maxOccupancy: 1,
-    floor: 1,
-  },
-  {
-    id: "2",
-    number: "102",
-    type: "double",
-    status: "occupied",
-    rate: 80,
-    amenities: ["WiFi", "TV"],
-    maxOccupancy: 2,
-    floor: 1,
-  },
-  {
-    id: "3",
-    number: "201",
-    type: "suite",
-    status: "cleaning",
-    rate: 120,
-    amenities: ["WiFi", "AC"],
-    maxOccupancy: 3,
-    floor: 2,
-  },
-];
-
 export default function Rooms() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [rooms, setRooms] = useState<Room[]>(initialRooms);
+  
+  // ✅ STATE: Initialize empty, fetch from backend
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Check-in form state
   const [showCheckInForm, setShowCheckInForm] = useState(false);
@@ -77,9 +50,7 @@ export default function Rooms() {
     email: "",
     phone: "",
   });
-  const [checkInErrors, setCheckInErrors] = useState<{ [key: string]: string }>(
-    {}
-  );
+  const [checkInErrors, setCheckInErrors] = useState<{ [key: string]: string }>({});
 
   // Filter state
   const [searchTerm, setSearchTerm] = useState("");
@@ -87,7 +58,7 @@ export default function Rooms() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [floorFilter, setFloorFilter] = useState("all");
 
-  // New/Edit Room state
+  // New/Edit Room state template
   const [newRoom, setNewRoom] = useState<Room>({
     id: "",
     number: "",
@@ -98,6 +69,63 @@ export default function Rooms() {
     maxOccupancy: 1,
     floor: 1,
   });
+
+  // ✅ FETCH ROOMS FUNCTION
+  const fetchRooms = async () => {
+    try {
+      setLoading(true);
+      const user = auth.currentUser;
+      // If no user is logged in yet, we might wait or return. 
+      // Ideally handled by auth listener, but safe to check here.
+      if (!user) return; 
+
+      const token = await user.getIdToken();
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+      
+      const res = await fetch(`${API_URL}/api/rooms`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        
+        // Map Backend Data (_id, roomNumber, TitleCase Status) -> Frontend Interface
+        const mappedRooms = data.map((r: any) => ({
+            id: r._id,
+            number: r.roomNumber, 
+            type: r.type,
+            // Convert Backend "Available" -> Frontend "available" (lowercase) if needed
+            status: r.status.toLowerCase(), 
+            rate: r.rate,
+            amenities: r.amenities,
+            maxOccupancy: r.maxOccupancy,
+            floor: r.floor
+        }));
+        
+        setRooms(mappedRooms);
+      } else {
+        console.error("Failed to fetch rooms:", res.statusText);
+        toast.error("Failed to load rooms");
+      }
+    } catch (error) {
+      console.error("Failed to fetch rooms", error);
+      toast.error("Error loading rooms");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ EFFECT: Load rooms on mount / auth change
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+        if (user) {
+            fetchRooms();
+        } else {
+            setLoading(false);
+        }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const resetRoomForm = () => {
     setNewRoom({
@@ -121,15 +149,23 @@ export default function Rooms() {
     setCheckInErrors({});
   };
 
+  // ✅ HANDLER: Called when RoomForm successfully saves/updates
+  const handleRoomSaved = () => {
+    fetchRooms(); // Refresh the list from backend
+    setShowAddForm(false);
+    resetRoomForm();
+  };
+
   const handleCheckIn = (room: Room) => {
     setCheckInRoom(room);
     setShowCheckInForm(true);
   };
 
-  const handleCheckOut = (room: Room) => {
+  const handleCheckOut = async (room: Room) => {
     if (window.confirm(`Check out guest from Room ${room.number}?`)) {
-      handleStatusChange(room.id, "cleaning");
-      toast.success(`Guest checked out from Room ${room.number}`);
+        // Optimistic update
+        handleStatusChange(room.id, "cleaning");
+        toast.success(`Guest checked out from Room ${room.number}`);
     }
   };
 
@@ -139,52 +175,64 @@ export default function Rooms() {
     setShowAddForm(true);
   };
 
-  const handleDeleteRoom = (room: Room) => {
-    if (
-      window.confirm(`Are you sure you want to delete Room ${room.number}?`)
-    ) {
-      setRooms(rooms.filter((r) => r.id !== room.id));
-      toast.success(`Room ${room.number} deleted successfully`);
+  const handleDeleteRoom = async (room: Room) => {
+    if (window.confirm(`Are you sure you want to delete Room ${room.number}?`)) {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        const token = await user.getIdToken();
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+
+        // Call Backend Delete API
+        const res = await fetch(`${API_URL}/api/rooms/${room.id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+            toast.success(`Room ${room.number} deleted successfully`);
+            fetchRooms(); // Refresh list
+        } else {
+            throw new Error("Failed to delete");
+        }
+      } catch (e) {
+        console.error(e);
+        toast.error("Could not delete room");
+      }
     }
   };
 
-  const handleStatusChange = (roomId: string, newStatus: RoomStatus) => {
+  const handleStatusChange = async (roomId: string, newStatus: RoomStatus) => {
+    // 1. Optimistic Update (Instant UI feedback)
     setRooms((prev) =>
       prev.map((room) =>
         room.id === roomId ? { ...room, status: newStatus } : room
       )
     );
-  };
 
-  const filteredRooms = rooms.filter(
-    (room) =>
-      (statusFilter === "all" || room.status === statusFilter) &&
-      (typeFilter === "all" || room.type === typeFilter) &&
-      (floorFilter === "all" || room.floor.toString() === floorFilter) &&
-      room.number.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    // 2. Background API Call
+    try {
+        const user = auth.currentUser;
+        if (!user) return;
+        const token = await user.getIdToken();
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
-  const handleAddRoom = () => {
-    const newErrors: { [key: string]: string } = {};
-    if (!newRoom.number.trim()) newErrors.number = "Room number is required";
-    if (!newRoom.type) newErrors.type = "Room type is required";
-    if (!newRoom.rate || newRoom.rate <= 0)
-      newErrors.rate = "Rate must be greater than 0";
-    if (!newRoom.floor || newRoom.floor < 1)
-      newErrors.floor = "Floor must be at least 1";
-    if (!newRoom.maxOccupancy || newRoom.maxOccupancy < 1)
-      newErrors.maxOccupancy = "Max occupancy must be at least 1";
+        // Backend expects TitleCase for status enum (Available, Occupied...)
+        const backendStatus = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
+        await fetch(`${API_URL}/api/rooms/${roomId}/status`, {
+            method: 'PATCH',
+            headers: { 
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}` 
+            },
+            body: JSON.stringify({ status: backendStatus })
+        });
+    } catch (error) {
+        console.error("Status update failed", error);
+        toast.error("Failed to update status on server");
+        fetchRooms(); // Revert on failure
     }
-
-    if (!editingRoom)
-      setRooms([...rooms, { ...newRoom, id: Date.now().toString() }]);
-
-    resetRoomForm();
-    setShowAddForm(false);
   };
 
   const handleProcessCheckIn = () => {
@@ -198,11 +246,22 @@ export default function Rooms() {
       setCheckInErrors(newErrors);
       return;
     }
-
+    
+    // Here you would call an API to create a booking/check-in
+    toast.success("Guest Checked In!");
     resetCheckInForm();
   };
 
-  // Hardcoded status counts
+  // Filter Logic
+  const filteredRooms = rooms.filter(
+    (room) =>
+      (statusFilter === "all" || room.status === statusFilter) &&
+      (typeFilter === "all" || room.type === typeFilter) &&
+      (floorFilter === "all" || room.floor.toString() === floorFilter) &&
+      room.number.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Status Counts (Dynamic)
   const statusCounts = {
     total: rooms.length,
     available: rooms.filter((r) => r.status === "available").length,
@@ -339,6 +398,7 @@ export default function Rooms() {
           }}
         />
 
+        {/* Modal: Room Form */}
         {showAddForm && (
           <RoomForm
             newRoom={newRoom}
@@ -350,10 +410,12 @@ export default function Rooms() {
               setShowAddForm(false);
               resetRoomForm();
             }}
-            onSave={handleAddRoom}
+            // ✅ PASSED: Refresh list after save
+            onSave={handleRoomSaved}
           />
         )}
 
+        {/* Modal: Check In Form */}
         {showCheckInForm && checkInRoom && (
           <CheckInForm
             room={checkInRoom}
@@ -386,18 +448,24 @@ export default function Rooms() {
           </div>
         </div>
 
-        <RoomsList
-          rooms={filteredRooms}
-          viewMode={viewMode}
-          onEdit={handleEditRoom}
-          onView={(room) => handleEditRoom(room)} // ✅ simple example
-          onStatusChange={handleStatusChange}
-          onCheckIn={handleCheckIn}
-          onCheckOut={handleCheckOut}
-          onDelete={handleDeleteRoom}
-        />
+        {/* Rooms List */}
+        {loading ? (
+           <div className="text-center py-12">Loading rooms...</div>
+        ) : (
+          <RoomsList
+            rooms={filteredRooms}
+            viewMode={viewMode}
+            onEdit={handleEditRoom}
+            onView={(room) => handleEditRoom(room)}
+            onStatusChange={handleStatusChange}
+            onCheckIn={handleCheckIn}
+            onCheckOut={handleCheckOut}
+            onDelete={handleDeleteRoom}
+          />
+        )}
 
-        {filteredRooms.length === 0 && (
+        {/* Empty State */}
+        {!loading && filteredRooms.length === 0 && (
           <div className="text-center py-12 text-gray-600">
             <svg
               className="mx-auto h-12 w-12 text-gray-400"

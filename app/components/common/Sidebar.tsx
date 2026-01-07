@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "firebase/auth";
+import { auth } from "@/app/lib/firebase";
+import { useAuth } from "@/app/context/AuthContext"; // Import useAuth
 import {
   Bed,
   LogOut,
@@ -14,7 +17,7 @@ import {
   BarChart3,
   Settings,
   X,
-  User,
+  User as UserIcon,
   Tags,
   DollarSign,
   UserCheck,
@@ -24,8 +27,8 @@ type Role = "admin" | "receptionist";
 
 interface SidebarProps {
   role: Role;
-  sidebarOpen?: boolean; // new
-  setSidebarOpen?: (open: boolean) => void; // new
+  sidebarOpen?: boolean;
+  setSidebarOpen?: (open: boolean) => void;
 }
 
 export default function Sidebar({
@@ -35,156 +38,70 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { profile, user } = useAuth(); // Get real user data
 
-  const handleLogout = () => router.push("/auth");
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push("/auth");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
+  const displayName = profile?.name || user?.displayName || "Staff Member";
 
   const links = {
     admin: [
-      {
-        name: "Dashboard",
-        href: "/dashboard/admin",
-        icon: LayoutDashboard,
-        badge: null,
-      },
+      { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard, badge: null },
       { name: "Rooms", href: "/dashboard/admin/rooms", icon: Bed, badge: null },
-      {
-        name: "Bookings",
-        href: "/dashboard/admin/bookings",
-        icon: Calendar,
-        badge: "3",
-      },
-      {
-        name: "Dining",
-        href: "/dashboard/admin/dining",
-        icon: Utensils,
-        badge: "5",
-      },
-      {
-        name: "Trip Packages",
-        href: "/dashboard/admin/trip-packages",
-        icon: Navigation,
-        badge: null,
-      },
-      {
-        name: "Inventory",
-        href: "/dashboard/admin/inventory",
-        icon: Package,
-        badge: "1",
-      },
-      {
-        name: "Billing",
-        href: "/dashboard/admin/billing",
-        icon: FileText,
-        badge: null,
-      },
-      {
-        name: "Reports",
-        href: "/dashboard/admin/reports",
-        icon: BarChart3,
-        badge: null,
-      },
-      {
-        name: "Settings",
-        href: "/dashboard/admin/settings",
-        icon: Settings,
-        badge: null,
-      },
-      {
-        name: "Guest",
-        href: "/dashboard/admin/guest",
-        icon: User,
-        badge: null,
-      },
-      {
-        name: "Deals",
-        href: "/dashboard/admin/deals",
-        icon: Tags,
-        badge: null,
-      },
-      {
-        name: "Room",
-        href: "/dashboard/admin/room",
-        icon: Bed,
-        badge: null,
-      },
-      {
-        name: "Rate",
-        href: "/dashboard/admin/rate",
-        icon: DollarSign,
-        badge: null,
-      },
-      {
-        name: "Front desk",
-        href: "/dashboard/admin/frontdesk",
-        icon: UserCheck,
-        badge: null,
-      },
+      { name: "Bookings", href: "/dashboard/admin/bookings", icon: Calendar, badge: "3" },
+      { name: "Dining", href: "/dashboard/admin/dining", icon: Utensils, badge: "5" },
+      { name: "Trip Packages", href: "/dashboard/admin/trip-packages", icon: Navigation, badge: null },
+      { name: "Inventory", href: "/dashboard/admin/inventory", icon: Package, badge: "1" },
+      { name: "Billing", href: "/dashboard/admin/billing", icon: FileText, badge: null },
+      { name: "Reports", href: "/dashboard/admin/reports", icon: BarChart3, badge: null },
+      { name: "Settings", href: "/dashboard/admin/settings", icon: Settings, badge: null },
+      { name: "Guest", href: "/dashboard/admin/guest", icon: UserIcon, badge: null },
+      { name: "Deals", href: "/dashboard/admin/deals", icon: Tags, badge: null },
+      { name: "Room", href: "/dashboard/admin/room", icon: Bed, badge: null },
+      { name: "Rate", href: "/dashboard/admin/rate", icon: DollarSign, badge: null },
+      { name: "Front desk", href: "/dashboard/admin/frontdesk", icon: UserCheck, badge: null },
     ],
     receptionist: [
-      {
-        name: "Dashboard",
-        href: "/dashboard/receptionist",
-        icon: LayoutDashboard,
-        badge: null,
-      },
-      {
-        name: "Rooms",
-        href: "/dashboard/receptionist/rooms",
-        icon: Bed,
-        badge: null,
-      },
-      {
-        name: "Bookings",
-        href: "/dashboard/receptionist/bookings",
-        icon: Calendar,
-        badge: "3",
-      },
-      {
-        name: "Dining",
-        href: "/dashboard/receptionist/dining",
-        icon: Utensils,
-        badge: "5",
-      },
-      {
-        name: "Trip Packages",
-        href: "/dashboard/receptionist/trip-packages",
-        icon: Navigation,
-        badge: null,
-      },
-      {
-        name: "Billing",
-        href: "/dashboard/receptionist/billing",
-        icon: FileText,
-        badge: null,
-      },
+      { name: "Dashboard", href: "/dashboard/receptionist", icon: LayoutDashboard, badge: null },
+      { name: "Rooms", href: "/dashboard/receptionist/rooms", icon: Bed, badge: null },
+      { name: "Bookings", href: "/dashboard/receptionist/bookings", icon: Calendar, badge: "3" },
+      { name: "Dining", href: "/dashboard/receptionist/dining", icon: Utensils, badge: "5" },
+      { name: "Trip Packages", href: "/dashboard/receptionist/trip-packages", icon: Navigation, badge: null },
+      { name: "Billing", href: "/dashboard/receptionist/billing", icon: FileText, badge: null },
     ],
   };
 
+  const roleLinks = links[role] || [];
+
   return (
     <>
-      {/* Overlay for mobile */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/30 z-40 md:hidden"
+          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
           onClick={() => setSidebarOpen && setSidebarOpen(false)}
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg flex flex-col transform transition-transform duration-300 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white text-gray-900 shadow-lg border-r border-gray-200 flex flex-col transform transition-transform duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 md:static md:inset-auto`}
+        } lg:translate-x-0 lg:static lg:inset-auto`}
       >
-        {/* Mobile close button */}
-        <div className="flex items-center justify-between p-4 md:hidden border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 lg:hidden border-b border-gray-200">
           <h2 className="text-lg font-bold">Menu</h2>
           <button onClick={() => setSidebarOpen && setSidebarOpen(false)}>
             <X className="h-6 w-6 text-gray-600" />
           </button>
         </div>
 
-        {/* Header */}
-        <div className="hidden md:flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="hidden lg:flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-teal-600 rounded-xl flex items-center justify-center">
               <Bed className="h-6 w-6 text-white" />
@@ -196,10 +113,9 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-4 py-6">
+        <nav className="flex-1 px-4 py-6 overflow-y-auto">
           <ul className="space-y-2">
-            {links[role].map((link) => {
+            {roleLinks.map((link) => {
               const Icon = link.icon;
               const isActive = pathname === link.href;
               return (
@@ -236,17 +152,19 @@ export default function Sidebar({
           </ul>
         </nav>
 
-        {/* User Info */}
+        {/* User Info Section - Now showing Real Data */}
         <div className="p-4 border-t border-gray-200 bg-gray-50">
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Bed className="h-6 w-6 text-white" />
+              <span className="text-white font-bold text-lg">
+                {displayName.charAt(0).toUpperCase()}
+              </span>
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-gray-900 capitalize truncate">
-                {role}
+                {displayName}
               </p>
-              <p className="text-xs text-gray-500 truncate">Hotel Staff</p>
+              <p className="text-xs text-gray-500 truncate capitalize">{role}</p>
             </div>
             <button
               onClick={handleLogout}

@@ -1,33 +1,16 @@
+"use client";
+
 import React from "react";
-import RoomCard from "./RoomCard";
+import RoomCard, { Room } from "./RoomCard";
 import { Edit, Eye, Trash2 } from "lucide-react";
-
-type RoomStatus =
-  | "available"
-  | "occupied"
-  | "reserved"
-  | "cleaning"
-  | "maintenance";
-
-export type RoomType = "single" | "double" | "suite" | "family";
-
-export interface Room {
-  id: string;
-  number: string;
-  type: RoomType;
-  status: RoomStatus;
-  rate: number;
-  amenities: string[];
-  maxOccupancy: number;
-  floor: number;
-}
+// Removed unnecessary imports (toast, auth) since this is now just a UI component
 
 interface RoomsListProps {
   rooms: Room[];
   viewMode: "grid" | "list";
   onEdit: (room: Room) => void;
   onView: (room: Room) => void;
-  onStatusChange: (roomId: string, status: RoomStatus) => void;
+  onStatusChange: (roomId: string, status: any) => void;
   onCheckIn: (room: Room) => void;
   onCheckOut: (room: Room) => void;
   onDelete: (room: Room) => void;
@@ -44,141 +27,9 @@ export default function RoomsList({
   onDelete,
 }: RoomsListProps): React.ReactElement {
   
-
-  // handleStatusChange Function
-  const handleStatusChange = async (roomId: string, status: RoomStatus) => {
-    try {
-      // Add API endpoint
-      const endpoint = "Add API endpoint here";
-      
-      const response = await fetch(endpoint, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          roomId,
-          status,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log("Room status updated successfully:", result);
-
-      onStatusChange(roomId, status);
-
-    } catch (error) {
-      // Handle API error (show toast, alert)
-      console.error("Failed to update room status:", error);
-      alert("Failed to update room status. Please try again.");
-    }
-  };
-
-  // handleCheckIn Function
-  const handleCheckIn = async (room: Room) => {
-    try {
-      // Add API endpoint
-      const endpoint = "Add API endpoint here";
-      
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          roomId: room.id,
-          roomNumber: room.number,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log("Check-in successful:", result);
-
-      onCheckIn(room);
-
-    } catch (error) {
-      // Handle API error (show toast, alert)
-      console.error("Failed to check in:", error);
-      alert("Failed to check in. Please try again.");
-    }
-  };
-
-  // handleCheckOut Function
-  const handleCheckOut = async (room: Room) => {
-    try {
-      // Add API endpoint
-      const endpoint = "Add API endpoint here";
-      
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          roomId: room.id,
-          roomNumber: room.number,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log("Check-out successful:", result);
-
-      onCheckOut(room);
-
-    } catch (error) {
-      // Handle API error (show toast, alert)
-      console.error("Failed to check out:", error);
-      alert("Failed to check out. Please try again.");
-    }
-  };
-
-  // handleDelete Function
-  const handleDelete = async (room: Room) => {
-    if (!confirm(`Are you sure you want to delete Room ${room.number}?`)) {
-      return;
-    }
-
-    try {
-      // Add API endpoint
-      const endpoint = `Add API endpoint here${room.id}`;
-      
-      const response = await fetch(endpoint, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log("Room deleted successfully:", result);
-
-      onDelete(room);
-
-    } catch (error) {
-      // Handle API error (show toast, alert)
-      console.error("Failed to delete room:", error);
-      alert("Failed to delete room. Please try again.");
-    }
-  };
-
+  // ✅ FIX: Removed redundant handleDelete and handleStatusChange with API calls.
+  // We now pass the props directly to the UI elements.
+  
   if (rooms.length === 0)
     return (
       <div className="text-center py-12 text-gray-600">
@@ -194,14 +45,15 @@ export default function RoomsList({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {rooms.map((room) => (
           <RoomCard
-            key={room.id}
+            key={room.id || room._id}
             room={room}
             onEdit={onEdit}
             onView={onView}
-            onStatusChange={handleStatusChange}
-            onCheckIn={handleCheckIn}
-            onCheckOut={handleCheckOut}
-            onDelete={handleDelete}
+            // Pass the parent's handler directly
+            onStatusChange={onStatusChange}
+            onCheckIn={onCheckIn}
+            onCheckOut={onCheckOut}
+            onDelete={onDelete}
           />
         ))}
       </div>
@@ -226,10 +78,12 @@ export default function RoomsList({
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {rooms.map((room) => (
-            <tr key={room.id} className="hover:bg-gray-50">
+          {rooms.map((room) => {
+             const roomId = room.id || room._id;
+             return (
+            <tr key={roomId} className="hover:bg-gray-50">
               <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                Room {room.number}
+                Room {room.number || room.roomNumber}
               </td>
               <td className="px-6 py-4 whitespace-nowrap capitalize text-gray-900">
                 {room.type}
@@ -237,26 +91,18 @@ export default function RoomsList({
               <td className="px-6 py-4 whitespace-nowrap">
                 <span
                   className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                    room.status === "available"
+                    room.status?.toLowerCase() === "available"
                       ? "bg-green-100 text-green-800 border-green-200"
-                      : room.status === "occupied"
+                      : room.status?.toLowerCase() === "occupied"
                       ? "bg-red-100 text-red-800 border-red-200"
-                      : room.status === "reserved"
+                      : room.status?.toLowerCase() === "reserved"
                       ? "bg-blue-100 text-blue-800 border-blue-200"
-                      : room.status === "cleaning"
+                      : room.status?.toLowerCase() === "cleaning"
                       ? "bg-yellow-100 text-yellow-800 border-yellow-200"
                       : "bg-gray-100 text-gray-800 border-gray-200"
                   }`}
                 >
-                  {room.status === "available"
-                    ? "Available"
-                    : room.status === "occupied"
-                    ? "Occupied"
-                    : room.status === "reserved"
-                    ? "Reserved"
-                    : room.status === "cleaning"
-                    ? "Needs Cleaning"
-                    : "Maintenance"}
+                  {room.status}
                 </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -281,23 +127,24 @@ export default function RoomsList({
                 >
                   <Edit className="h-5 w-5 text-blue-600" />
                 </button>
-                {room.status === "cleaning" && (
+                {room.status?.toLowerCase() === "cleaning" && (
                   <button
-                    onClick={() => handleStatusChange(room.id, "available")}
+                    onClick={() => onStatusChange(roomId!, "available")}
                     className="text-green-600 hover:text-green-800"
                   >
                     Mark Clean
                   </button>
                 )}
+                {/* Delete button: Simply calls the parent function */}
                 <button
-                  onClick={() => handleDelete(room)}
+                  onClick={() => onDelete(room)}
                   className="text-red-600 hover:text-red-800"
                 >
                   <Trash2 className="h-5 w-5 text-red-600" />
                 </button>
               </td>
             </tr>
-          ))}
+          )})}
         </tbody>
       </table>
     </div>

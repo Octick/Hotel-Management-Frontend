@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { auth } from "@/app/lib/firebase";
+import toast from "react-hot-toast";
 
 interface Package {
-    id: number;
+    id?: string;
+    _id?: string;
     name: string;
     description: string;
     maxParticipants: number;
@@ -44,13 +47,17 @@ export default function AddPackageModal({
     const [showSuccess, setShowSuccess] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+
     // Initialize form with package data when in edit mode
     useEffect(() => {
         if (isEditMode && packageData) {
+            const durationNum = parseInt(packageData.duration) || 1;
+            
             setFormData({
                 packageName: packageData.name,
                 destination: packageData.location,
-                duration: packageData.duration.split(' ')[0],
+                duration: durationNum.toString(),
                 basePrice: packageData.price.toString(),
                 maxParticipants: packageData.maxParticipants.toString(),
                 description: packageData.description,
@@ -60,7 +67,6 @@ export default function AddPackageModal({
                 isActive: packageData.status === "Active"
             });
         } else {
-            // Reset form when opening in add mode
             setFormData({
                 packageName: "",
                 destination: "",
@@ -76,104 +82,90 @@ export default function AddPackageModal({
         }
     }, [isEditMode, packageData]);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
-        }));
+        if (type === 'checkbox') {
+             const checked = (e.target as HTMLInputElement).checked;
+             setFormData(prev => ({ ...prev, [name]: checked }));
+        } else {
+             setFormData(prev => ({ ...prev, [name]: value }));
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
 
-        if (isEditMode) {
-            // Handle package update
-            const updatedPackage = {
-                id: packageData?.id,
-                name: formData.packageName,
-                location: formData.destination,
-                duration: `${formData.duration} day${formData.duration !== "1" ? "s" : ""}`,
-                price: parseInt(formData.basePrice),
-                maxParticipants: parseInt(formData.maxParticipants),
-                description: formData.description,
-                vehicle: formData.vehicleName,
-                status: formData.isActive ? "Active" : "Inactive"
-            };
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) {
+            toast.error("You must be logged in");
+            setIsSubmitting(false);
+            return;
+        }
 
-            // Add update API endpoint
-            /*
-            try {
-              const response = await fetch(`/api/trip-packages/${packageData?.id}`, {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(updatedPackage),
-              });
-              
-              if (response.ok) {
-                const updated = await response.json();
-                console.log('Package updated successfully:', updated);
-                onUpdate?.(updated);
-                setShowSuccess(true);
-              } else {
-                console.error('Failed to update package');
-                setIsSubmitting(false);
-              }
-            } catch (error) {
-              console.error('Error updating package:', error);
-              setIsSubmitting(false);
+        const payload = {
+            name: formData.packageName,
+            location: formData.destination,
+            duration: `${formData.duration} day${formData.duration !== "1" ? "s" : ""}`,
+            price: parseInt(formData.basePrice),
+            maxParticipants: parseInt(formData.maxParticipants),
+            description: formData.description,
+            vehicle: formData.vehicleName,
+            status: formData.isActive ? "Active" : "Inactive"
+        };
+
+        try {
+            if (isEditMode && packageData) {
+                // Update
+                const id = packageData._id || packageData.id;
+                const response = await fetch(`${API_URL}/api/trips/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (response.ok) {
+                    const updated = await response.json();
+                    onUpdate?.(updated);
+                    setShowSuccess(true);
+                } else {
+                    const err = await response.json();
+                    toast.error(err.error || "Failed to update package");
+                }
+            } else {
+                // Create
+                const response = await fetch(`${API_URL}/api/trips`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (response.ok) {
+                    setShowSuccess(true);
+                } else {
+                    const err = await response.json();
+                    toast.error(err.error || "Failed to create package");
+                }
             }
-            */
-
-            // Temporary simulation until API is implemented
-            setTimeout(() => {
-                console.log("Package to be updated:", updatedPackage);
-                onUpdate?.(updatedPackage);
-                setShowSuccess(true);
-                setIsSubmitting(false);
-            }, 1000);
-
-        } else {
-            // Add package creation API endpoint
-            /*
-            try {
-              const response = await fetch('/api/trip-packages', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData),
-              });
-              
-              if (response.ok) {
-                const newPackage = await response.json();
-                console.log('Package created successfully:', newPackage);
-                setShowSuccess(true);
-              } else {
-                console.error('Failed to create package');
-                setIsSubmitting(false);
-              }
-            } catch (error) {
-              console.error('Error creating package:', error);
-              setIsSubmitting(false);
-            }
-            */
-
-            // Temporary work until API added
-            setTimeout(() => {
-                console.log("Form data to be submitted:", formData);
-                setShowSuccess(true);
-                setIsSubmitting(false);
-            }, 1000);
+        } catch (error) {
+            console.error(error);
+            toast.error("An error occurred");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleSuccessClose = () => {
         setShowSuccess(false);
         onClose();
+        // ✅ FIX: Dispatch event instead of reloading page
+        window.dispatchEvent(new Event("refreshTripPackages"));
     };
 
     const handleModalClose = () => {
@@ -184,33 +176,25 @@ export default function AddPackageModal({
 
     if (!isOpen) return null;
 
-    // Success Message Modal
     if (showSuccess) {
         return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                 <div className="bg-white rounded-lg w-full max-w-md p-6">
                     <div className="text-center">
-                        {/* Success Icon */}
                         <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
                             <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
                         </div>
-
-                        {/* Success Title */}
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">
                             {isEditMode ? "Trip package updated!" : "New trip package created!"}
                         </h3>
-
-                        {/* Success Message */}
                         <p className="text-gray-600 mb-6">
                             {isEditMode
                                 ? "Trip package has been successfully updated."
                                 : "New package has been successfully created."
                             }
                         </p>
-
-                        {/* Action Button */}
                         <button
                             onClick={handleSuccessClose}
                             className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors font-medium"
@@ -232,7 +216,6 @@ export default function AddPackageModal({
                     </h2>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        {/* Package Details */}
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-black mb-1">
@@ -343,7 +326,7 @@ export default function AddPackageModal({
                                 <select
                                     name="vehicleType"
                                     value={formData.vehicleType}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, vehicleType: e.target.value }))}
+                                    onChange={handleInputChange}
                                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                     disabled={isSubmitting}
                                 >
@@ -401,7 +384,6 @@ export default function AddPackageModal({
                             </div>
                         </div>
 
-                        {/* Action Buttons */}
                         <div className="flex justify-end space-x-3 pt-6 border-t">
                             <button
                                 type="button"

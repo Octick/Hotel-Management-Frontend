@@ -1,4 +1,3 @@
-// app/dashboard/customer/NewBooking/GuestInfo.tsx
 "use client";
 
 import { BookingData } from "./NewBookingModal";
@@ -10,6 +9,7 @@ interface GuestInfoProps {
   prevStep: () => void;
   currentStep: number;
   totalSteps: number;
+  onComplete?: () => void; // ✅ Added this
 }
 
 export default function GuestInfo({
@@ -31,7 +31,6 @@ export default function GuestInfo({
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Name Fields */}
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -66,7 +65,6 @@ export default function GuestInfo({
           </div>
         </div>
 
-        {/* Contact Fields */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Email Address *
@@ -103,7 +101,6 @@ export default function GuestInfo({
           </div>
         </div>
 
-        {/* Next Button */}
         <div className="flex justify-end pt-4">
           <button
             type="submit"

@@ -1,10 +1,12 @@
-// /components/LoginForm.tsx
+// app/components/auth/LoginForm.tsx
 "use client";
 
 import React, { useState } from "react";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/app/lib/firebase"; // Correct import path
 
 interface LoginFormProps {
   onToggleMode?: () => void;
@@ -25,34 +27,56 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
     }
 
     setIsLoading(true);
-    // Mock login logic
-    setTimeout(() => {
-      setIsLoading(false);
-      if (email === "admin@hotel.com" && password === "admin123")
-        router.push("/dashboard/admin");
-      else if (
-        email === "receptionist@hotel.com" &&
-        password === "reception123"
-      )
-        router.push("/dashboard/receptionist");
-      else if (email === "customer@example.com" && password === "customer123")
+
+    try {
+      // 1. Firebase Login
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // 2. Get Access Token
+      const token = await user.getIdToken();
+
+      // 3. Store Token (Cookie for middleware, localStorage for client access)
+      document.cookie = `token=${token}; path=/; max-age=86400; Secure; SameSite=Strict`;
+      localStorage.setItem("token", token);
+
+      // 4. Fetch User Role from Your Backend
+      // Ensure your backend is running on port 3000
+      const res = await fetch('http://localhost:3000/api/users/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const userData = await res.json();
+        const role = userData.roles?.[0] || 'customer';
+        
+        toast.success(`Welcome back, ${userData.name || 'User'}!`);
+        
+        // 5. Redirect based on Role
+        if (role === 'admin') router.push("/dashboard/admin");
+        else if (role === 'receptionist') router.push("/dashboard/receptionist");
+        else router.push("/dashboard/customer");
+      } else {
+        // Fallback: Default to customer if backend fetch fails
+        console.warn("Could not fetch user role from backend");
+        toast.success("Login successful!");
         router.push("/dashboard/customer");
-      else toast.error("Invalid email or password");
-    }, 1000);
+      }
+
+    } catch (error: any) {
+      console.error("Login error:", error);
+      const msg = error.message || "Invalid email or password";
+      // Clean up Firebase error messages
+      toast.error(msg.replace("Firebase: ", "").replace("auth/", ""));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const demoAccounts = [
     { email: "admin@hotel.com", password: "admin123", role: "Admin" },
-    {
-      email: "receptionist@hotel.com",
-      password: "reception123",
-      role: "Receptionist",
-    },
-    {
-      email: "customer@example.com",
-      password: "customer123",
-      role: "Customer",
-    },
+    { email: "receptionist@hotel.com", password: "reception123", role: "Receptionist" },
+    { email: "customer@example.com", password: "customer123", role: "Customer" },
   ];
 
   const fillDemoAccount = (email: string, password: string) => {
@@ -118,7 +142,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition"
+          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition disabled:opacity-50"
         >
           {isLoading ? "Signing in..." : "Sign In"}
         </button>

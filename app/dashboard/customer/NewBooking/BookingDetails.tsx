@@ -1,4 +1,3 @@
-// app/dashboard/customer/NewBooking/BookingDetails.tsx
 "use client";
 
 import { BookingData } from "./NewBookingModal";
@@ -10,6 +9,7 @@ interface BookingDetailsProps {
   prevStep: () => void;
   currentStep: number;
   totalSteps: number;
+  onComplete?: () => void; // ✅ Added this
 }
 
 export default function BookingDetails({

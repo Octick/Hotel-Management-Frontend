@@ -1,9 +1,11 @@
-// /components/RegisterForm.tsx
+// app/components/auth/RegisterForm.tsx
 "use client";
 
 import React, { useState } from "react";
 import { User, Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { auth } from "@/app/lib/firebase"; // Correct import path
 
 interface RegisterFormProps {
   onToggleMode: () => void;
@@ -25,10 +27,10 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const { name, email, password, confirmPassword } = formData;
+    const { name, email, phone, password, confirmPassword } = formData;
 
     if (!name || !email || !password || !confirmPassword) {
       toast.error("Please fill in all required fields");
@@ -46,11 +48,47 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
+
+    try {
+      // 1. Create User in Firebase
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 2. Update Display Name in Firebase
+      await updateProfile(user, { displayName: name });
+
+      // 3. Sync User to MongoDB (Backend)
+      const token = await user.getIdToken();
+      
+      const response = await fetch('http://localhost:3000/api/users/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: name,
+          email: email,
+          phone: phone
+        })
+      });
+
+      if (!response.ok) {
+        // If backend fails, we still have the firebase user, but it's not ideal.
+        // In a strict app, you might delete the firebase user here.
+        throw new Error("Failed to save user data to backend database");
+      }
+
+      toast.success("Account created successfully!");
+      onToggleMode(); // Switch back to Login view
+
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      const msg = error.message || "Registration failed";
+      toast.error(msg.replace("Firebase: ", "").replace("auth/", ""));
+    } finally {
       setIsLoading(false);
-      toast.success("Registration successful!");
-      onToggleMode(); // go back to login
-    }, 1000);
+    }
   };
 
   return (
@@ -59,6 +97,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
       <p className="text-gray-600 mb-6">Sign up for a new account</p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Name */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Full Name
@@ -77,6 +116,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
           </div>
         </div>
 
+        {/* Email */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Email
@@ -95,6 +135,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
           </div>
         </div>
 
+        {/* Phone */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Phone
@@ -112,6 +153,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
           </div>
         </div>
 
+        {/* Password */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Password
@@ -141,6 +183,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
           </div>
         </div>
 
+        {/* Confirm Password */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Confirm Password
@@ -173,7 +216,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition"
+          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition disabled:opacity-50"
         >
           {isLoading ? "Creating Account..." : "Create Account"}
         </button>
