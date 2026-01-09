@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Plus, Package, AlertTriangle } from "lucide-react";
 import AdminReceptionistLayout from "../../../components/layout/AdminReceptionistLayout";
 import InventoryCard from "../../../components/inventory/InventoryCard";
 import ItemForm from "../../../components/inventory/ItemForm";
 import ItemFilters from "../../../components/inventory/ItemFilters";
-import toast from "react-hot-toast";
+// CHANGE: Import from react-toastify to match your Layout
+import { toast } from "react-toastify"; 
 import QuickActions from "../../../components/inventory/QuickActions";
+import { useAuth } from "@/app/context/AuthContext";
 
 export interface InventoryItem {
   id: string;
@@ -22,113 +24,16 @@ export interface InventoryItem {
   lastRestocked?: Date;
 }
 
-const mockInventoryItems: InventoryItem[] = [
-  {
-    id: "1",
-    name: "Coffee Beans",
-    category: "food",
-    currentStock: 65,
-    minStock: 10,
-    maxStock: 50,
-    unit: "kg",
-    cost: 15,
-    supplier: "Coffee Supply Co.",
-    lastRestocked: new Date("2024-01-10"),
-  },
-  {
-    id: "2",
-    name: "Towels",
-    category: "amenities",
-    currentStock: 25,
-    minStock: 30,
-    maxStock: 100,
-    unit: "pieces",
-    cost: 8,
-    supplier: "Hotel Supplies Inc.",
-    lastRestocked: new Date("2024-01-12"),
-  },
-  {
-    id: "3",
-    name: "Bath Soap",
-    category: "amenities",
-    currentStock: 8,
-    minStock: 20,
-    maxStock: 80,
-    unit: "pieces",
-    cost: 2.5,
-    supplier: "Hotel Supplies Inc.",
-    lastRestocked: new Date("2024-01-08"),
-  },
-  {
-    id: "4",
-    name: "Toilet Paper",
-    category: "amenities",
-    currentStock: 12,
-    minStock: 25,
-    maxStock: 100,
-    unit: "rolls",
-    cost: 1.2,
-    supplier: "Hotel Supplies Inc.",
-    lastRestocked: new Date("2024-01-05"),
-  },
-  {
-    id: "5",
-    name: "Cleaning Spray",
-    category: "cleaning",
-    currentStock: 3,
-    minStock: 8,
-    maxStock: 30,
-    unit: "bottles",
-    cost: 4.5,
-    supplier: "Cleaning Solutions Ltd.",
-    lastRestocked: new Date("2024-01-03"),
-  },
-  {
-    id: "6",
-    name: "Fresh Milk",
-    category: "food",
-    currentStock: 15,
-    minStock: 20,
-    maxStock: 50,
-    unit: "liters",
-    cost: 3.2,
-    supplier: "Dairy Fresh Co.",
-    lastRestocked: new Date("2024-01-14"),
-  },
-  {
-    id: "7",
-    name: "Bread",
-    category: "food",
-    currentStock: 6,
-    minStock: 10,
-    maxStock: 25,
-    unit: "loaves",
-    cost: 2.8,
-    supplier: "Bakery Direct",
-    lastRestocked: new Date("2024-01-14"),
-  },
-  {
-    id: "8",
-    name: "Orange Juice",
-    category: "beverage",
-    currentStock: 4,
-    minStock: 12,
-    maxStock: 40,
-    unit: "liters",
-    cost: 5.5,
-    supplier: "Beverage Co.",
-    lastRestocked: new Date("2024-01-11"),
-  },
-];
-
 export default function Inventory() {
-  const [inventoryItems, setInventoryItems] =
-    useState<InventoryItem[]>(mockInventoryItems);
+  const { token } = useAuth();
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [stockFilter, setStockFilter] = useState("all");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  
   const [newItem, setNewItem] = useState<Partial<InventoryItem>>({
     name: "",
     category: "food",
@@ -139,8 +44,38 @@ export default function Inventory() {
     cost: 0,
     supplier: "",
   });
+  
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+  // Fetch Inventory Data from Backend
+  const fetchInventory = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/api/inventory`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInventoryItems(data);
+      } else {
+        console.error("Failed to fetch inventory");
+      }
+    } catch (error) {
+      console.error("Error loading inventory:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, API_URL]);
+
+  useEffect(() => {
+    fetchInventory();
+  }, [fetchInventory]);
+
+  // Filtering Logic
   const filteredItems = useMemo(() => {
     return inventoryItems.filter((item) => {
       const matchesSearch =
@@ -165,6 +100,7 @@ export default function Inventory() {
     });
   }, [inventoryItems, searchTerm, categoryFilter, stockFilter]);
 
+  // Statistics Calculation
   const getInventoryStats = () => {
     const total = inventoryItems.length;
     const lowStock = inventoryItems.filter(
@@ -186,10 +122,115 @@ export default function Inventory() {
 
   const stats = getInventoryStats();
 
-  // Save to localStorage whenever inventory changes
-  useEffect(() => {
-    localStorage.setItem("hotel_inventory", JSON.stringify(inventoryItems));
-  }, [inventoryItems]);
+  // --- ACTIONS IMPLEMENTATION ---
+
+  // 1. Low Stock Alert (Popup Only)
+  const handleLowStockAlert = () => {
+    if (stats.lowStock > 0) {
+      toast.error(`Alert: ${stats.lowStock} items are running low! Check the list.`, {
+        autoClose: 5000,
+      });
+    } else {
+      toast.success("Stock levels are good. No items are low.", {
+        autoClose: 3000,
+      });
+    }
+  };
+
+  // 2. Stock Report (CSV Download)
+  const handleStockReport = () => {
+    if (inventoryItems.length === 0) {
+      toast.error("No inventory data to export");
+      return;
+    }
+
+    const headers = ["ID", "Name", "Category", "Current Stock", "Min Stock", "Max Stock", "Unit", "Cost", "Supplier", "Last Restocked"];
+    const rows = inventoryItems.map(item => [
+      item.id,
+      item.name,
+      item.category,
+      item.currentStock,
+      item.minStock,
+      item.maxStock,
+      item.unit,
+      item.cost,
+      item.supplier || "",
+      item.lastRestocked ? new Date(item.lastRestocked).toLocaleDateString() : ""
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `inventory_report_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success("Stock report downloaded");
+  };
+
+  // 3. Bulk Restock (Real Backend Update)
+  const handleBulkRestock = async () => {
+    if (!token) return;
+
+    // Identify items that need restocking
+    const itemsToRestock = inventoryItems.filter(item => item.currentStock <= item.minStock);
+
+    if (itemsToRestock.length === 0) {
+      toast.success("No items need restocking right now!");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to restock ${itemsToRestock.length} items to their maximum level?`)) {
+      return;
+    }
+
+    // React-toastify loading toast
+    const toastId = toast.loading("Processing bulk restock...");
+    let successCount = 0;
+
+    try {
+      // Update each item in the backend
+      await Promise.all(itemsToRestock.map(async (item) => {
+        const res = await fetch(`${API_URL}/api/inventory/${item.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            ...item,
+            currentStock: item.maxStock,
+            lastRestocked: new Date()
+          })
+        });
+        if (res.ok) successCount++;
+      }));
+
+      // Update the loading toast to success
+      toast.update(toastId, {
+        render: `Successfully restocked ${successCount} items`,
+        type: "success",
+        isLoading: false,
+        autoClose: 3000
+      });
+      
+      fetchInventory(); // Refresh list from backend
+    } catch (error) {
+      // Update the loading toast to error
+      toast.update(toastId, {
+        render: "Some items failed to restock",
+        type: "error",
+        isLoading: false,
+        autoClose: 3000
+      });
+    }
+  };
+
+  // --- EXISTING HANDLERS (Connected to Backend) ---
 
   const handleEditItem = (item: InventoryItem) => {
     setEditingItem(item);
@@ -197,71 +238,64 @@ export default function Inventory() {
     setShowAddForm(true);
   };
 
-  const handleRestockItem = (item: InventoryItem) => {
+  const handleRestockItem = async (item: InventoryItem) => {
+    if (!token) return;
     const newStock = item.maxStock;
-    const updatedItems = inventoryItems.map((i) =>
-      i.id === item.id
-        ? { ...i, currentStock: newStock, lastRestocked: new Date() }
-        : i
-    );
-    setInventoryItems(updatedItems);
-    toast.success(`${item.name} restocked to ${newStock} ${item.unit}`);
+    
+    try {
+      const res = await fetch(`${API_URL}/api/inventory/${item.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ...item,
+          currentStock: newStock,
+          lastRestocked: new Date()
+        })
+      });
+
+      if (res.ok) {
+        toast.success(`${item.name} restocked to ${newStock} ${item.unit}`);
+        fetchInventory();
+      } else {
+        toast.error("Failed to restock item");
+      }
+    } catch (error) {
+      toast.error("Error restocking item");
+    }
   };
 
-  const handleUpdateStock = (item: InventoryItem, newStock: number) => {
-    const updatedItems = inventoryItems.map((i) =>
-      i.id === item.id ? { ...i, currentStock: Math.max(0, newStock) } : i
-    );
-    setInventoryItems(updatedItems);
-    toast.success(
-      `${item.name} stock updated to ${Math.max(0, newStock)} ${item.unit}`
-    );
+  const handleUpdateStock = async (item: InventoryItem, newStock: number) => {
+    if (!token) return;
+    const safeStock = Math.max(0, newStock);
+    
+    try {
+        const res = await fetch(`${API_URL}/api/inventory/${item.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                ...item,
+                currentStock: safeStock
+            })
+        });
+
+        if (res.ok) {
+            toast.success(`${item.name} stock updated to ${safeStock} ${item.unit}`);
+            fetchInventory();
+        } else {
+            toast.error("Failed to update stock");
+        }
+    } catch (error) {
+        toast.error("Error updating stock");
+    }
   };
 
-  const handleAddItem = () => {
-    const errors: Record<string, string> = {};
-
-    if (!newItem.name) errors.name = "Item name is required.";
-    if (!newItem.category) errors.category = "Category is required.";
-    if (newItem.currentStock === undefined || newItem.currentStock < 0)
-      errors.currentStock = "Current stock must be 0 or more.";
-    if (newItem.minStock === undefined || newItem.minStock < 0)
-      errors.minStock = "Minimum stock must be 0 or more.";
-    if (newItem.maxStock === undefined || newItem.maxStock <= 0)
-      errors.maxStock = "Maximum stock must be greater than 0.";
-    if (!newItem.unit) errors.unit = "Unit is required.";
-
-    setFormErrors(errors);
-
-    if (Object.keys(errors).length > 0) {
-      toast.error("Please correct the highlighted errors.");
-      return;
-    }
-
-    const item: InventoryItem = {
-      id: editingItem?.id || Date.now().toString(),
-      name: newItem.name || "",
-      category: (newItem.category as InventoryItem["category"]) || "other",
-      currentStock: newItem.currentStock ?? 0,
-      minStock: newItem.minStock ?? 0,
-      maxStock: newItem.maxStock ?? 0,
-      unit: newItem.unit || "pieces",
-      cost: newItem.cost ?? 0,
-      supplier: newItem.supplier,
-      lastRestocked: new Date(),
-    };
-
-    if (editingItem) {
-      const updatedItems = inventoryItems.map((i) =>
-        i.id === editingItem.id ? item : i
-      );
-      setInventoryItems(updatedItems);
-      toast.success(`${item.name} updated successfully`);
-    } else {
-      setInventoryItems([...inventoryItems, item]);
-      toast.success(`${item.name} added successfully`);
-    }
-
+  const handleFormSave = () => {
     setShowAddForm(false);
     setEditingItem(null);
     setFormErrors({});
@@ -275,13 +309,32 @@ export default function Inventory() {
       cost: 0,
       supplier: "",
     });
+    
+    toast.success(editingItem ? "Item updated successfully" : "Item added successfully");
+    fetchInventory();
   };
 
-  const handleDeleteItem = (item: InventoryItem) => {
+  const handleDeleteItem = async (item: InventoryItem) => {
+    if (!token) return;
+    
     if (window.confirm(`Are you sure you want to delete ${item.name}?`)) {
-      const updatedItems = inventoryItems.filter((i) => i.id !== item.id);
-      setInventoryItems(updatedItems);
-      toast.success(`${item.name} deleted successfully`);
+        try {
+            const res = await fetch(`${API_URL}/api/inventory/${item.id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (res.ok) {
+                toast.success(`${item.name} deleted successfully`);
+                fetchInventory();
+            } else {
+                toast.error("Failed to delete item");
+            }
+        } catch (error) {
+            toast.error("Error deleting item");
+        }
     }
   };
 
@@ -301,6 +354,10 @@ export default function Inventory() {
     { value: "high", label: "High Stock" },
   ];
 
+  if (loading) {
+     return <AdminReceptionistLayout role="admin"><div className="flex justify-center items-center h-64">Loading inventory...</div></AdminReceptionistLayout>;
+  }
+
   return (
     <AdminReceptionistLayout role="admin">
       <div className="space-y-8 animate-fade-in">
@@ -317,7 +374,20 @@ export default function Inventory() {
 
           <button
             className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition group"
-            onClick={() => setShowAddForm(true)}
+            onClick={() => {
+                setEditingItem(null);
+                setNewItem({
+                    name: "",
+                    category: "food",
+                    currentStock: 0,
+                    minStock: 0,
+                    maxStock: 0,
+                    unit: "pieces",
+                    cost: 0,
+                    supplier: "",
+                });
+                setShowAddForm(true);
+            }}
           >
             <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform" />
             Add Item
@@ -380,6 +450,7 @@ export default function Inventory() {
         )}
 
         {/* Filters */}
+        <div id="inventory-filters">
         <ItemFilters
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
@@ -395,6 +466,7 @@ export default function Inventory() {
             setStockFilter("all");
           }}
         />
+        </div>
 
         {/* Add/Edit Form */}
         {showAddForm && (
@@ -407,18 +479,8 @@ export default function Inventory() {
             onClose={() => {
               setShowAddForm(false);
               setEditingItem(null);
-              setNewItem({
-                name: "",
-                category: "food",
-                currentStock: 0,
-                minStock: 0,
-                maxStock: 0,
-                unit: "pieces",
-                cost: 0,
-                supplier: "",
-              });
             }}
-            onSave={handleAddItem}
+            onSave={handleFormSave}
           />
         )}
 
@@ -457,10 +519,9 @@ export default function Inventory() {
           </div>
         )}
 
-        {/* Quick Actions */}
+        {/* Quick Actions - Connected to Real Handlers */}
         <QuickActions
           onAddNewItem={() => {
-            setShowAddForm(true);
             setEditingItem(null);
             setNewItem({
               name: "",
@@ -472,7 +533,11 @@ export default function Inventory() {
               cost: 0,
               supplier: "",
             });
+            setShowAddForm(true);
           }}
+          onBulkRestock={handleBulkRestock}
+          onStockReport={handleStockReport}
+          onLowStockAlert={handleLowStockAlert}
         />
       </div>
     </AdminReceptionistLayout>

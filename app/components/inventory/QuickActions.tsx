@@ -14,34 +14,42 @@ interface Action {
 }
 
 interface QuickActionsProps {
-  onAddNewItem: () => void; // parent function to open the form
+  onAddNewItem: () => void;
+  onBulkRestock: () => void;     // Added
+  onStockReport: () => void;     // Added
+  onLowStockAlert: () => void;   // Added
 }
 
-export default function QuickActions({ onAddNewItem }: QuickActionsProps) {
+export default function QuickActions({ 
+  onAddNewItem,
+  onBulkRestock,
+  onStockReport,
+  onLowStockAlert
+}: QuickActionsProps) {
   const actions: Action[] = [
     {
       label: "Add New Item",
       icon: Plus,
       variant: "primary",
-      onClick: onAddNewItem, // use the parent function
+      onClick: onAddNewItem,
     },
     {
       label: "Bulk Restock",
       icon: Package,
       variant: "secondary",
-      onClick: () => console.log("Restock"),
+      onClick: onBulkRestock,
     },
     {
       label: "Stock Report",
       icon: TrendingUp,
       variant: "success",
-      onClick: () => console.log("Report"),
+      onClick: onStockReport,
     },
     {
       label: "Low Stock Alert",
       icon: AlertTriangle,
       variant: "warning",
-      onClick: () => console.log("Alert"),
+      onClick: onLowStockAlert,
     },
   ];
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { X, Save } from "lucide-react";
+import { useAuth } from "@/app/context/AuthContext";
 
 export interface InventoryItem {
   id: string;
@@ -34,6 +35,8 @@ export default function ItemForm({
   onClose,
   onSave,
 }: ItemFormProps) {
+  const { token } = useAuth();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
   
   // API calls
   const handleSave = async () => {
@@ -42,41 +45,52 @@ export default function ItemForm({
       return;
     }
 
+    if (!token) {
+      alert("Authentication error. Please log in again.");
+      return;
+    }
+
     try {
-      // Replace API endpoint
       const endpoint = editingItem 
-        ? "/api/inventory/update"  // Add endpoint for editing
-        : "/api/inventory/add";    // Add Update endpoint for adding
+        ? `${API_URL}/api/inventory/${editingItem.id}`
+        : `${API_URL}/api/inventory`;
+
+      const method = editingItem ? "PUT" : "POST";
+
+      const payload = {
+        ...newItem,
+        currentStock: Number(newItem.currentStock),
+        minStock: Number(newItem.minStock),
+        maxStock: Number(newItem.maxStock),
+        cost: Number(newItem.cost),
+        // Ensure lastRestocked is handled if this is a new item and not set
+        ...(editingItem ? {} : { lastRestocked: new Date() })
+      };
 
       const response = await fetch(endpoint, {
-        method: editingItem ? "PUT" : "POST",
+        method,
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({
-          ...newItem,
-          currentStock: Number(newItem.currentStock),
-          minStock: Number(newItem.minStock),
-          maxStock: Number(newItem.maxStock),
-          cost: Number(newItem.cost),
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
+        const errData = await response.json();
+        throw new Error(errData.error || `API Error: ${response.status}`);
       }
 
       // Handle successful response
       const result = await response.json();
       console.log("Item saved successfully:", result);
 
-      // Call the existing onSave prop to handle UI state updates
+      // Call the existing onSave prop to trigger refresh in parent
       onSave();
 
-    } catch (error) {
-      // Handle API error (show toast, alert)
+    } catch (error: any) {
       console.error("Failed to save item:", error);
-      alert("Failed to save item. Please try again.");
+      alert(`Failed to save item: ${error.message}`);
     }
   };
 
@@ -159,15 +173,15 @@ export default function ItemForm({
           </label>
           <input
             type="number"
-            value={newItem.currentStock || ""}
+            value={newItem.currentStock === undefined ? "" : newItem.currentStock}
             onChange={(e) =>
               setNewItem({
                 ...newItem,
-                currentStock: parseInt(e.target.value) || 1,
+                currentStock: parseInt(e.target.value) || 0,
               })
             }
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            min={1}
+            min={0}
           />
           {formErrors.currentStock && (
             <p className="text-red-500 text-sm mt-1">
@@ -183,15 +197,15 @@ export default function ItemForm({
           </label>
           <input
             type="number"
-            value={newItem.minStock || ""}
+            value={newItem.minStock === undefined ? "" : newItem.minStock}
             onChange={(e) =>
               setNewItem({
                 ...newItem,
-                minStock: parseInt(e.target.value) || 1,
+                minStock: parseInt(e.target.value) || 0,
               })
             }
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            min={1}
+            min={0}
           />
           {formErrors.minStock && (
             <p className="text-red-500 text-sm mt-1">{formErrors.minStock}</p>
@@ -205,15 +219,15 @@ export default function ItemForm({
           </label>
           <input
             type="number"
-            value={newItem.maxStock || ""}
+            value={newItem.maxStock === undefined ? "" : newItem.maxStock}
             onChange={(e) =>
               setNewItem({
                 ...newItem,
-                maxStock: parseInt(e.target.value) || 1,
+                maxStock: parseInt(e.target.value) || 0,
               })
             }
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            min={1}
+            min={0}
           />
           {formErrors.maxStock && (
             <p className="text-red-500 text-sm mt-1">{formErrors.maxStock}</p>
@@ -227,7 +241,7 @@ export default function ItemForm({
           </label>
           <input
             type="number"
-            value={newItem.cost || ""}
+            value={newItem.cost === undefined ? "" : newItem.cost}
             onChange={(e) =>
               setNewItem({
                 ...newItem,
