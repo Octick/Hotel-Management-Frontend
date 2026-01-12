@@ -1,46 +1,35 @@
+/* */
 import React, { useState } from "react";
-import { X, Calendar, Tag, ChevronDown, ChevronUp } from "lucide-react";
+import { X, ChevronDown, Check } from "lucide-react";
+import { useAuth } from "../../context/AuthContext"; // ✅ Added
 
 interface DealModelProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (dealData: DealFormData) => void;
-}
-
-interface DealFormData {
-  dealName: string;
-  referenceNumber: string;
-  tags: string[];
-  price: string;
-  description: string;
-  roomType: string[];
-  discount: string;
-  startDate: string;
-  endDate: string;
+  onSave: (dealData: any) => void;
 }
 
 export default function DealModel({ isOpen, onClose, onSave }: DealModelProps) {
-  const [formData, setFormData] = useState<DealFormData>({
+  const { token } = useAuth();
+  
+  const [formData, setFormData] = useState({
     dealName: "",
     referenceNumber: "",
-    tags: [],
+    tags: [] as string[],
     price: "",
     description: "",
-    roomType: [],
+    roomType: [] as string[],
     discount: "",
     startDate: "",
     endDate: "",
+    reservationsLeft: "20" // Added default
   });
 
-  const [showTagDropdown, setShowTagDropdown] = useState(false);
-  const [showRoomTypeDropdown, setShowRoomTypeDropdown] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null); // Track which dropdown is open
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const handleCancel = () => onClose();
-  const clearAllTags = () => setFormData(prev => ({ ...prev, tags: [] }));
-  const clearAllRoomTypes = () => setFormData(prev => ({ ...prev, roomType: [] }));
 
-  const tagOptions = ["Family", "Seasonal", "VIP", "Weekend", "Holiday", "Special Offer", "Last Minute"];
-  const roomTypeOptions = ["Single", "Double", "Triple", "VIP", "Suite", "Deluxe", "Executive"];
+  const tagOptions = ["Family", "Seasonal", "VIP", "Weekend", "Holiday", "Special Offer"];
+  const roomTypeOptions = ["Single", "Double", "Triple", "VIP", "Suite", "Deluxe"];
 
   if (!isOpen) return null;
 
@@ -52,372 +41,211 @@ export default function DealModel({ isOpen, onClose, onSave }: DealModelProps) {
   const handleTagToggle = (tag: string) => {
     setFormData(prev => ({
       ...prev,
-      tags: prev.tags.includes(tag)
-        ? prev.tags.filter(t => t !== tag)
+      tags: prev.tags.includes(tag) 
+        ? prev.tags.filter(t => t !== tag) 
         : [...prev.tags, tag]
     }));
   };
 
+  // ✅ Fixed: Now allows multiple room types
   const handleRoomTypeToggle = (roomType: string) => {
     setFormData(prev => ({
       ...prev,
-      roomType: [roomType]
+      roomType: prev.roomType.includes(roomType)
+        ? prev.roomType.filter(t => t !== roomType)
+        : [...prev.roomType, roomType]
     }));
   };
 
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!token) return;
     setIsSubmitting(true);
 
-    // Form validation
     if (!formData.dealName || !formData.referenceNumber || !formData.price || !formData.startDate || !formData.endDate) {
-      console.log("Please fill all required fields");
       alert("Please fill all required fields");
       setIsSubmitting(false);
       return;
     }
 
     try {
-      // Add API endpoint here
-      const API = "/api/deals";
-
-      // Prepare data for API
       const requestData = {
-        dealName: formData.dealName,
-        referenceNumber: formData.referenceNumber,
-        tags: formData.tags,
+        ...formData,
         price: parseFloat(formData.price),
-        description: formData.description,
-        roomTypes: formData.roomType,
         discount: parseFloat(formData.discount) || 0,
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        status: "Ongoing",
-        reservationsLeft: 0
+        reservationsLeft: parseInt(formData.reservationsLeft) || 0,
+        roomTypes: formData.roomType, // Backend expects 'roomTypes'
+        status: "New",
       };
 
-      const response = await fetch(API, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/deals`, {
         method: "POST",
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(requestData),
       });
 
       if (response.ok) {
-        const newDeal = await response.json();
-        console.log("Deal created successfully", newDeal);
-        onSave(formData);
+        onSave(requestData);
         onClose();
+        // Reset form
+        setFormData({ 
+            dealName: "", referenceNumber: "", tags: [], price: "", description: "", 
+            roomType: [], discount: "", startDate: "", endDate: "", reservationsLeft: "20" 
+        });
       } else {
-        console.log("Failed to create deal");
-        alert("Failed to create deal. Please try again.");
+        const err = await response.json();
+        alert(err.error || "Failed to create deal");
       }
-
-      // Simulating API call for now
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log("API would be called with:", requestData);
-      console.log("API endpoint would be:", API);
-
-      // Call the onSave callback with form data
-      onSave(formData);
-      onClose();
-
     } catch (error) {
-      console.error("Deal creation failed", error);
-      alert("Failed to create deal. Please try again.");
+      console.error(error);
+      alert("Failed to create deal");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Helper to close dropdowns when clicking outside
+  const closeDropdowns = () => setActiveDropdown(null);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center p-6 border-b border-gray-200 sticky top-0 bg-white">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
+        
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-white sticky top-0 z-10 rounded-t-lg">
           <h2 className="text-xl font-semibold text-gray-800">Add New Deal</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full transition-colors" type="button">
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
             <X className="h-5 w-5 text-gray-500" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-8">
-          {/* Deal Name Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">Deal name</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Deal Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Enter deal name</label>
-                <input
-                  type="text"
-                  name="dealName"
-                  value={formData.dealName}
-                  onChange={handleInputChange}
-                  placeholder="Enter deal name"
-                  className="text-black w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Deal Name <span className="text-red-500">*</span></label>
+                <input name="dealName" value={formData.dealName} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="e.g. Summer Special" />
               </div>
+
+              {/* Reference Number */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reference number</label>
-                <input
-                  type="text"
-                  name="referenceNumber"
-                  value={formData.referenceNumber}
-                  onChange={handleInputChange}
-                  placeholder="Enter reference number"
-                  className="text-black w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reference No <span className="text-red-500">*</span></label>
+                <input name="referenceNumber" value={formData.referenceNumber} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="e.g. SUM-2026" />
               </div>
             </div>
-          </div>
 
-          {/* Tags and Price Section */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <span className="flex items-center gap-1"><div className="h-4 w-4" />Tags</span>
-                </label>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Tags Dropdown */}
                 <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowTagDropdown(!showTagDropdown)}
-                    className="w-full flex flex-wrap items-center gap-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[42px]"
-                  >
-                    {formData.tags.length === 0 ? (
-                      <span className="text-gray-500">Select tags</span>
-                    ) : (
-                      formData.tags.map(tag => (
-                        <span
-                          key={tag}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-sm"
-                        >
-                          {tag}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleTagToggle(tag);
-                            }}
-                            className="text-blue-500 hover:text-blue-700"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))
-                    )}
-
-                    <span className="ml-auto">
-                      {showTagDropdown ? (
-                        <ChevronUp className="h-4 w-4 text-gray-400" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-gray-400" />
-                      )}
-                    </span>
-                  </button>
-
-                  {showTagDropdown && (
-                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                      <div className="text-black p-2">
-                        {tagOptions.map(tag => (
-                          <div
-                            key={tag}
-                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 rounded ${formData.tags.includes(tag) ? "bg-blue-50 text-blue-700" : ""
-                              }`}
-                            onClick={() => handleTagToggle(tag)}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>{tag}</span>
-                              {formData.tags.includes(tag) && (
-                                <span className="text-blue-500">✓</span>
-                              )}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+                    <button 
+                        type="button" 
+                        onClick={() => setActiveDropdown(activeDropdown === 'tags' ? null : 'tags')} 
+                        className="w-full text-left px-3 py-2 border border-gray-300 rounded-lg bg-white flex justify-between items-center focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                        <span className="truncate">{formData.tags.length ? formData.tags.join(", ") : "Select Tags"}</span>
+                        <ChevronDown size={16} className="text-gray-500"/>
+                    </button>
+                    
+                    {activeDropdown === 'tags' && (
+                        <>
+                            {/* Backdrop to close on click outside */}
+                            <div className="fixed inset-0 z-20 cursor-default" onClick={closeDropdowns}></div>
+                            <div className="absolute z-30 w-full bg-white border border-gray-200 mt-1 shadow-xl rounded-lg max-h-48 overflow-y-auto">
+                                {tagOptions.map(tag => (
+                                    <div 
+                                        key={tag} 
+                                        onClick={() => handleTagToggle(tag)} 
+                                        className={`px-4 py-2 hover:bg-gray-50 cursor-pointer flex items-center justify-between text-sm ${formData.tags.includes(tag) ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}`}
+                                    >
+                                        {tag}
+                                        {formData.tags.includes(tag) && <Check size={14} />}
+                                    </div>
+                                ))}
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                        </>
+                    )}
                 </div>
-              </div>
 
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                  <input
-                    type="number"
-                    name="price"
-                    value={formData.price}
-                    onChange={handleInputChange}
-                    placeholder="Enter the price of deal"
-                    className="text-black w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                    min="0"
-                    step="0.01"
-                  />
+                {/* Price */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price ($) <span className="text-red-500">*</span></label>
+                    <input name="price" type="number" value={formData.price} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0.00" />
                 </div>
-              </div>
             </div>
-          </div>
 
-
-          {/* Room Facility Section */}
-          <div className="space-y-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Room facility</label>
+            {/* Description */}
             <div>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                placeholder="Enter a description...."
-                rows={3}
-                className="text-black w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea name="description" value={formData.description} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" rows={3} placeholder="Details about the deal..." />
             </div>
-          </div>
 
-          {/* Room Type and Discount Section */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Room type</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Room Type Dropdown */}
                 <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowRoomTypeDropdown(!showRoomTypeDropdown)}
-                    className="w-full flex flex-wrap items-center gap-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[42px]"
-                  >
-                    {formData.roomType.length === 0 ? (
-                      <span className="text-gray-500">Select room type</span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-sm">
-                        {formData.roomType[0]}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            clearAllRoomTypes();
-                          }}
-                          className="text-blue-500 hover:text-blue-700"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    )}
-
-                    <span className="ml-auto">
-                      {showRoomTypeDropdown ? (
-                        <ChevronUp className="h-4 w-4 text-gray-400" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-gray-400" />
-                      )}
-                    </span>
-                  </button>
-
-                  {showRoomTypeDropdown && (
-                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                      <div className="text-black p-2">
-                        {roomTypeOptions.map(roomType => (
-                          <div
-                            key={roomType}
-                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 rounded ${formData.roomType.includes(roomType) ? "bg-blue-50 text-blue-700" : ""
-                              }`}
-                            onClick={() => handleRoomTypeToggle(roomType)}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>{roomType}</span>
-                              {formData.roomType.includes(roomType) && (
-                                <span className="text-blue-500">✓</span>
-                              )}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
+                    <button 
+                        type="button" 
+                        onClick={() => setActiveDropdown(activeDropdown === 'room' ? null : 'room')} 
+                        className="w-full text-left px-3 py-2 border border-gray-300 rounded-lg bg-white flex justify-between items-center focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                        <span className="truncate">{formData.roomType.length ? formData.roomType.join(", ") : "Select Type"}</span>
+                        <ChevronDown size={16} className="text-gray-500"/>
+                    </button>
+                    
+                    {activeDropdown === 'room' && (
+                        <>
+                            <div className="fixed inset-0 z-20 cursor-default" onClick={closeDropdowns}></div>
+                            <div className="absolute z-30 w-full bg-white border border-gray-200 mt-1 shadow-xl rounded-lg max-h-48 overflow-y-auto">
+                                {roomTypeOptions.map(type => (
+                                    <div 
+                                        key={type} 
+                                        onClick={() => handleRoomTypeToggle(type)} 
+                                        className={`px-4 py-2 hover:bg-gray-50 cursor-pointer flex items-center justify-between text-sm ${formData.roomType.includes(type) ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}`}
+                                    >
+                                        {type}
+                                        {formData.roomType.includes(type) && <Check size={14} />}
+                                    </div>
+                                ))}
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                        </>
+                    )}
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Discount</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                  <input
-                    type="number"
-                    name="discount"
-                    value={formData.discount}
-                    onChange={handleInputChange}
-                    placeholder="Enter discount value"
-                    className="text-black w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    min="0"
-                    step="0.01"
-                  />
+                {/* Discount */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Discount (%)</label>
+                    <input name="discount" type="number" value={formData.discount} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" />
                 </div>
-              </div>
-            </div>
-          </div>
 
-          {/* Date Section */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <span className="flex items-center gap-1"><Calendar className="h-4 w-4" />Start date</span>
-                </label>
-                <input
-                  type="date"
-                  name="startDate"
-                  value={formData.startDate}
-                  onChange={handleInputChange}
-                  className="text-black w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <span className="flex items-center gap-1"><Calendar className="h-4 w-4" />End date</span>
-                </label>
-                <input
-                  type="date"
-                  name="endDate"
-                  value={formData.endDate}
-                  onChange={handleInputChange}
-                  className="text-black w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
+                {/* Reservations Left (New Field) */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Quota</label>
+                    <input name="reservationsLeft" type="number" value={formData.reservationsLeft} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="20" />
+                </div>
             </div>
-          </div>
 
-          {/* Footer Buttons */}
-          <div className="flex justify-end gap-3 pt-6">
-            <button
-              type="button"
-              onClick={handleCancel}
-              disabled={isSubmitting}
-              className="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Saving...
-                </>
-              ) : (
-                'Save'
-              )}
-            </button>
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date <span className="text-red-500">*</span></label>
+                    <input type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-700" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date <span className="text-red-500">*</span></label>
+                    <input type="date" name="endDate" value={formData.endDate} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-700" />
+                </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button type="button" onClick={onClose} className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50 flex items-center">
+                    {isSubmitting ? "Saving..." : "Create Deal"}
+                </button>
+            </div>
         </form>
       </div>
     </div>

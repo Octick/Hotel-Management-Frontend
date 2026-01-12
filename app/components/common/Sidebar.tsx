@@ -1,10 +1,12 @@
+/* */
 "use client";
 
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth } from "@/app/lib/firebase";
-import { useAuth } from "@/app/context/AuthContext"; // Import useAuth
+import { useAuth } from "@/app/context/AuthContext"; 
 import {
   Bed,
   LogOut,
@@ -38,7 +40,40 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { profile, user } = useAuth(); // Get real user data
+  const { profile, user, token } = useAuth();
+  
+  // State for dynamic badges
+  const [counts, setCounts] = useState({
+    bookings: 0,
+    dining: 0,
+    inventory: 0
+  });
+
+  // Fetch real-time counts
+  useEffect(() => {
+    const fetchCounts = async () => {
+      if (!token || role !== 'admin') return; // Only fetch for admins generally or extend logic
+      
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/reports/sidebar-counts`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setCounts(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch sidebar counts", error);
+      }
+    };
+
+    fetchCounts();
+    // Optional: Poll every 30 seconds
+    const interval = setInterval(fetchCounts, 30000);
+    return () => clearInterval(interval);
+  }, [token, role]);
 
   const handleLogout = async () => {
     try {
@@ -55,24 +90,24 @@ export default function Sidebar({
     admin: [
       { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard, badge: null },
       { name: "Rooms", href: "/dashboard/admin/rooms", icon: Bed, badge: null },
-      { name: "Bookings", href: "/dashboard/admin/bookings", icon: Calendar, badge: "3" },
-      { name: "Dining", href: "/dashboard/admin/dining", icon: Utensils, badge: "5" },
+      { name: "Bookings", href: "/dashboard/admin/bookings", icon: Calendar, badge: counts.bookings > 0 ? String(counts.bookings) : null },
+      { name: "Dining", href: "/dashboard/admin/dining", icon: Utensils, badge: counts.dining > 0 ? String(counts.dining) : null },
       { name: "Trip Packages", href: "/dashboard/admin/trip-packages", icon: Navigation, badge: null },
-      { name: "Inventory", href: "/dashboard/admin/inventory", icon: Package, badge: "1" },
+      { name: "Inventory", href: "/dashboard/admin/inventory", icon: Package, badge: counts.inventory > 0 ? String(counts.inventory) : null },
       { name: "Billing", href: "/dashboard/admin/billing", icon: FileText, badge: null },
       { name: "Reports", href: "/dashboard/admin/reports", icon: BarChart3, badge: null },
       { name: "Settings", href: "/dashboard/admin/settings", icon: Settings, badge: null },
       { name: "Guest", href: "/dashboard/admin/guest", icon: UserIcon, badge: null },
       { name: "Deals", href: "/dashboard/admin/deals", icon: Tags, badge: null },
-      { name: "Room", href: "/dashboard/admin/room", icon: Bed, badge: null },
+      // ✅ Removed Duplicate "Room" link here
       { name: "Rate", href: "/dashboard/admin/rate", icon: DollarSign, badge: null },
       { name: "Front desk", href: "/dashboard/admin/frontdesk", icon: UserCheck, badge: null },
     ],
     receptionist: [
       { name: "Dashboard", href: "/dashboard/receptionist", icon: LayoutDashboard, badge: null },
       { name: "Rooms", href: "/dashboard/receptionist/rooms", icon: Bed, badge: null },
-      { name: "Bookings", href: "/dashboard/receptionist/bookings", icon: Calendar, badge: "3" },
-      { name: "Dining", href: "/dashboard/receptionist/dining", icon: Utensils, badge: "5" },
+      { name: "Bookings", href: "/dashboard/receptionist/bookings", icon: Calendar, badge: null },
+      { name: "Dining", href: "/dashboard/receptionist/dining", icon: Utensils, badge: null },
       { name: "Trip Packages", href: "/dashboard/receptionist/trip-packages", icon: Navigation, badge: null },
       { name: "Billing", href: "/dashboard/receptionist/billing", icon: FileText, badge: null },
     ],
@@ -152,7 +187,6 @@ export default function Sidebar({
           </ul>
         </nav>
 
-        {/* User Info Section - Now showing Real Data */}
         <div className="p-4 border-t border-gray-200 bg-gray-50">
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-xl flex items-center justify-center flex-shrink-0">

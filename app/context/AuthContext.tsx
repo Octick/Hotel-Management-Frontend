@@ -23,22 +23,23 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   role: string | null;
-  token: string | null; // Added token here
+  token: string | null;
 }
 
-const AuthContext = createContext<AuthContextType>({ 
+// ✅ FIX: Export the Context explicitly
+export const AuthContext = createContext<AuthContextType>({ 
   user: null, 
   profile: null,
   loading: true, 
   role: null,
-  token: null // Added default token value
+  token: null 
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [role, setRole] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null); // Added token state
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
@@ -51,7 +52,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(firebaseUser);
         try {
             const idToken = await firebaseUser.getIdToken();
-            setToken(idToken); // Store token in state
+            setToken(idToken);
 
             const res = await fetch(`${API_URL}/api/users/me`, {
                 headers: { 
@@ -75,7 +76,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(null);
         setProfile(null);
         setRole(null);
-        setToken(null); // Clear token
+        setToken(null);
       }
       setLoading(false);
     });
@@ -103,7 +104,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user, loading, role, pathname, router]);
 
-  // Render a Loading Spinner instead of nothing/black screen
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen w-screen bg-white">

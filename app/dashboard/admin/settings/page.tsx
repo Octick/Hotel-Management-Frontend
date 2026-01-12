@@ -1,3 +1,4 @@
+/* */
 "use client";
 import React, { useState } from "react";
 import { User, Shield, Bell, Database } from "lucide-react";
@@ -19,16 +20,11 @@ export default function Settings() {
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case "profile":
-        return <ProfileTab />;
-      case "users":
-        return <UsersTab />;
-      case "notifications":
-        return <NotificationsTab />;
-      case "system":
-        return <SystemTab />;
-      default:
-        return <ProfileTab />;
+      case "profile": return <ProfileTab />;
+      case "users": return <UsersTab />;
+      case "notifications": return <NotificationsTab />;
+      case "system": return <SystemTab />;
+      default: return <ProfileTab />;
     }
   };
 
@@ -38,22 +34,16 @@ export default function Settings() {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-            <p className="text-gray-600 mt-1">
-              Manage your account and system preferences
-            </p>
+            <p className="text-gray-600 mt-1">Manage your account and system preferences</p>
           </div>
         </div>
-
-        {/* Tabs */}
         <nav className="border-b border-gray-200 flex space-x-10">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-                activeTab === tab.id
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                activeTab === tab.id ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
             >
               <tab.icon className="h-4 w-4" />
@@ -61,7 +51,6 @@ export default function Settings() {
             </button>
           ))}
         </nav>
-
         {renderTabContent()}
       </div>
     </AdminReceptionistLayout>
