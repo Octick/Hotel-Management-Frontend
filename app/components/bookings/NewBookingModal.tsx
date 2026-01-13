@@ -8,7 +8,7 @@ import { Search, Plus, X, User as UserIcon, Calendar } from "lucide-react";
 interface Booking {
   id?: string;
   _id?: string;
-  roomId: string | { _id: string; number: string; [key: string]: any };
+  roomId: string | { _id: string; roomNumber: string; [key: string]: any };
   guestId: string | { _id: string; name: string; email: string; [key: string]: any };
   checkIn: string;
   checkOut: string;
@@ -41,7 +41,6 @@ export default function NewBookingModal({
   editingBooking,
   onUpdateBooking,
 }: NewBookingModalProps) {
-  // Form State
   const [formData, setFormData] = useState({
     roomId: "",
     checkIn: "",
@@ -49,23 +48,19 @@ export default function NewBookingModal({
     guestId: "", 
   });
   
-  // UI State
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<"search" | "new">("search");
   
-  // Data State
   const [guests, setGuests] = useState<UserProfile[]>([]);
   const [filteredGuests, setFilteredGuests] = useState<UserProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [rooms, setRooms] = useState<Room[]>([]);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   
-  // New Guest Form
   const [newGuest, setNewGuest] = useState({ name: "", email: "", phone: "" });
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
-  // --- 1. Load Initial Data (Guests & Rooms) ---
   useEffect(() => {
     if (isOpen) {
       fetchInitialData();
@@ -79,25 +74,18 @@ export default function NewBookingModal({
       const token = await user.getIdToken();
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Fetch Guests
-      const usersRes = await fetch(`${API_URL}/api/users`, { headers });
-      if (usersRes.ok) {
-        const data = await usersRes.json();
-        setGuests(data);
-      }
+      const [usersRes, roomsRes] = await Promise.all([
+        fetch(`${API_URL}/api/users`, { headers }),
+        fetch(`${API_URL}/api/rooms`, { headers })
+      ]);
 
-      // Fetch Rooms
-      const roomsRes = await fetch(`${API_URL}/api/rooms`, { headers });
-      if (roomsRes.ok) {
-        const data = await roomsRes.json();
-        setRooms(data);
-      }
+      if (usersRes.ok) setGuests(await usersRes.json());
+      if (roomsRes.ok) setRooms(await roomsRes.json());
     } catch (error) {
       console.error("Failed to fetch data", error);
     }
   };
 
-  // --- 2. Handle Edit Mode Pre-fill ---
   useEffect(() => {
     if (editingBooking && isOpen) {
       const getID = (field: any) => (typeof field === 'object' && field !== null ? field._id : field);
@@ -107,7 +95,6 @@ export default function NewBookingModal({
       };
 
       const gId = getID(editingBooking.guestId);
-      
       setFormData({
         roomId: getID(editingBooking.roomId) || "",
         checkIn: safeDate(editingBooking.checkIn),
@@ -115,7 +102,6 @@ export default function NewBookingModal({
         guestId: gId || "",
       });
 
-      // If we have the guest loaded, set the search query to their name
       if (gId && guests.length > 0) {
         const found = guests.find(g => g._id === gId);
         if (found) setSearchQuery(found.name);
@@ -123,13 +109,13 @@ export default function NewBookingModal({
     } else if (!isOpen) {
         setFormData({ roomId: "", checkIn: "", checkOut: "", guestId: "" });
         setSearchQuery("");
+        setNewGuest({ name: "", email: "", phone: "" });
         setAvailableRooms([]);
     }
-  }, [editingBooking, isOpen, guests]); // Added guests to dependency to sync name
+  }, [editingBooking, isOpen, guests]);
 
-  // --- 3. Filter Guests ---
   useEffect(() => {
-    if (!searchQuery) {
+    if (!searchQuery || formData.guestId) {
       setFilteredGuests([]);
       return;
     }
@@ -140,9 +126,8 @@ export default function NewBookingModal({
         g.email.toLowerCase().includes(lower)
       )
     );
-  }, [searchQuery, guests]);
+  }, [searchQuery, guests, formData.guestId]);
 
-  // --- 4. Check Room Availability ---
   useEffect(() => {
     if (formData.checkIn && formData.checkOut && rooms.length > 0) {
         checkAvailability();
@@ -155,7 +140,6 @@ export default function NewBookingModal({
         if (!user) return;
         const token = await user.getIdToken();
 
-        // Get all bookings to check conflicts
         const res = await fetch(`${API_URL}/api/bookings`, {
             headers: { Authorization: `Bearer ${token}` }
         });
@@ -167,23 +151,19 @@ export default function NewBookingModal({
 
             const occupiedIds = new Set();
             bookings.forEach(b => {
-                // Ignore the current booking if we are editing it
                 const bId = b._id || b.id;
                 const editId = editingBooking?._id || editingBooking?.id;
                 if (editId && bId === editId) return;
-
-                if (b.status === 'cancelled' || b.status === 'checked-out') return;
+                if (b.status === 'Cancelled' || b.status === 'CheckedOut') return;
 
                 const bStart = new Date(b.checkIn).getTime();
                 const bEnd = new Date(b.checkOut).getTime();
 
-                // Overlap check
                 if (start < bEnd && end > bStart) {
                     const rId = typeof b.roomId === 'object' ? b.roomId._id : b.roomId;
                     occupiedIds.add(rId);
                 }
             });
-
             setAvailableRooms(rooms.filter(r => !occupiedIds.has(r._id)));
         }
     } catch (e) {
@@ -192,53 +172,59 @@ export default function NewBookingModal({
   };
 
   const handleConfirmBooking = async () => {
-    if(!formData.roomId || (!formData.guestId && !newGuest.email) || !formData.checkIn || !formData.checkOut) {
-        toast.error("Please fill in all fields");
+    const isNewGuest = activeTab === 'new';
+
+    // Validation
+    if(!formData.roomId || !formData.checkIn || !formData.checkOut) {
+        toast.error("Please select dates and a room");
+        return;
+    }
+
+    if (isNewGuest && (!newGuest.name || !newGuest.email)) {
+        toast.error("Please fill in guest name and email");
+        return;
+    }
+
+    if (!isNewGuest && !formData.guestId) {
+        toast.error("Please select an existing guest");
         return;
     }
 
     try {
       setIsSubmitting(true);
       const user = auth.currentUser;
-      if (!user) {
-        toast.error("You must be logged in.");
-        return;
-      }
+      if (!user) return;
       const token = await user.getIdToken();
       
-      let finalGuestId = formData.guestId;
-
-      // Handle New Guest Creation
-      if (activeTab === 'new') {
-        const regRes = await fetch(`${API_URL}/api/users/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ ...newGuest, role: 'customer' })
-        });
-        
-        if (regRes.ok) {
-            const createdUser = await regRes.json();
-            finalGuestId = createdUser._id || createdUser.id;
-        } else {
-             // Fallback: try to find by email if it existed
-             const findRes = await fetch(`${API_URL}/api/users`, { headers: { Authorization: `Bearer ${token}` }});
-             const allUsers = await findRes.json();
-             const found = allUsers.find((u:any) => u.email === newGuest.email);
-             if(found) finalGuestId = found._id;
-             else throw new Error("Could not register or find new guest");
-        }
-      }
-
-      // Submit Booking
       const isEdit = !!editingBooking;
-      const method = isEdit ? "PUT" : "POST";
       const bookingId = editingBooking?.id || editingBooking?._id;
       const endpoint = isEdit ? `${API_URL}/api/bookings/${bookingId}` : `${API_URL}/api/bookings`;
 
+      // Payload Construction
+      const payload: any = {
+        roomId: formData.roomId,
+        checkIn: formData.checkIn,
+        checkOut: formData.checkOut,
+        source: 'Local',
+      };
+
+      if (isNewGuest) {
+        payload.guest = {
+            name: newGuest.name,
+            email: newGuest.email,
+            phone: newGuest.phone
+        };
+      } else {
+        payload.guestId = formData.guestId;
+      }
+
       const res = await fetch(endpoint, {
-        method: method,
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ...formData, guestId: finalGuestId })
+        method: isEdit ? "PUT" : "POST",
+        headers: { 
+          "Content-Type": "application/json", 
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify(payload)
       });
 
       if (res.ok) {
@@ -250,7 +236,8 @@ export default function NewBookingModal({
         toast.error(err.error || "Failed to save booking");
       }
     } catch (error: any) {
-      toast.error(error.message || "An error occurred");
+      console.error("Booking error:", error);
+      toast.error("An error occurred while saving booking");
     } finally {
       setIsSubmitting(false);
     }
@@ -259,11 +246,10 @@ export default function NewBookingModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto flex flex-col">
+    <div className="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-visible flex flex-col">
         
-        {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b border-gray-100">
+        <div className="flex justify-between items-center p-6 border-b">
           <h2 className="text-xl font-bold text-gray-900">
             {editingBooking ? "Edit Booking" : "New Booking"}
           </h2>
@@ -273,8 +259,6 @@ export default function NewBookingModal({
         </div>
 
         <div className="p-6 space-y-6 flex-1 overflow-y-auto">
-           
-           {/* Section 1: Dates */}
            <div className="grid grid-cols-2 gap-4">
              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Check In</label>
@@ -302,45 +286,43 @@ export default function NewBookingModal({
              </div>
            </div>
 
-           {/* Section 2: Room Selection */}
            <div>
              <label className="block text-sm font-medium text-gray-700 mb-2">Select Room</label>
              {!formData.checkIn || !formData.checkOut ? (
-                <div className="p-3 bg-gray-50 border border-dashed rounded-lg text-center text-sm text-gray-500">Select dates to see available rooms</div>
+                <div className="p-4 bg-gray-50 border border-dashed rounded-lg text-center text-sm text-gray-500">Select dates to see available rooms</div>
              ) : availableRooms.length === 0 ? (
-                <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-center text-sm text-red-600">No rooms available for these dates</div>
+                <div className="p-4 bg-red-50 border border-red-100 rounded-lg text-center text-sm text-red-600">No rooms available for these dates</div>
              ) : (
-                <div className="grid grid-cols-3 gap-3 max-h-40 overflow-y-auto p-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-1">
                     {availableRooms.map(room => (
                         <button
                             key={room._id}
                             onClick={() => setFormData({...formData, roomId: room._id})}
-                            className={`p-2 border rounded-lg text-left text-sm transition-all ${
+                            className={`p-3 border rounded-lg text-left transition-all ${
                                 formData.roomId === room._id 
-                                ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' 
-                                : 'hover:border-blue-300'
+                                ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-500/20' 
+                                : 'hover:border-blue-300 bg-white'
                             }`}
                         >
                             <div className="font-bold text-gray-900">Room {room.roomNumber}</div>
-                            <div className="text-gray-500 text-xs">${room.rate}/night</div>
+                            <div className="text-gray-500 text-xs">{room.type} • ${room.rate}/night</div>
                         </button>
                     ))}
                 </div>
              )}
            </div>
 
-           {/* Section 3: Guest Selection */}
-           <div className="border-t pt-4">
+           <div className="border-t pt-4 relative">
              <div className="flex justify-between items-center mb-3">
                 <label className="block text-sm font-medium text-gray-700">Guest Details</label>
                 <div className="flex bg-gray-100 p-1 rounded-lg">
                     <button 
                         onClick={() => { setActiveTab('search'); setFormData({...formData, guestId: ""}); }}
-                        className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${activeTab === 'search' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}
-                    >Search</button>
+                        className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${activeTab === 'search' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}
+                    >Search Existing</button>
                     <button 
                         onClick={() => { setActiveTab('new'); setFormData({...formData, guestId: ""}); }}
-                        className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${activeTab === 'new' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}
+                        className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${activeTab === 'new' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}
                     >New Guest</button>
                 </div>
              </div>
@@ -351,34 +333,36 @@ export default function NewBookingModal({
                     <input 
                         type="text" 
                         placeholder="Search guest by name or email..."
-                        className="pl-10 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="pl-10 w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
                         value={searchQuery}
                         onChange={(e) => {
                             setSearchQuery(e.target.value);
-                            setFormData({...formData, guestId: ""}); // Reset selection on type
+                            if (formData.guestId) setFormData({...formData, guestId: ""});
                         }}
                     />
-                    {/* Results Dropdown */}
-                    {searchQuery && !formData.guestId && filteredGuests.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                            {filteredGuests.map(guest => (
+                    {searchQuery && !formData.guestId && (
+                        <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-56 overflow-y-auto">
+                            {filteredGuests.length > 0 ? filteredGuests.map(guest => (
                                 <button
                                     key={guest._id}
+                                    type="button"
                                     onClick={() => {
                                         setFormData({...formData, guestId: guest._id});
                                         setSearchQuery(guest.name);
                                     }}
-                                    className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                                    className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-50 last:border-0"
                                 >
-                                    <div className="font-medium text-sm text-gray-900">{guest.name}</div>
+                                    <div className="font-semibold text-sm text-gray-900">{guest.name}</div>
                                     <div className="text-xs text-gray-500">{guest.email}</div>
                                 </button>
-                            ))}
+                            )) : (
+                                <div className="p-4 text-center text-sm text-gray-500">No customers found</div>
+                            )}
                         </div>
                     )}
                 </div>
              ) : (
-                <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50 p-4 rounded-lg border">
                     <input 
                         placeholder="Full Name"
                         className="w-full border border-gray-300 rounded-md p-2 text-sm"
@@ -393,7 +377,7 @@ export default function NewBookingModal({
                     />
                     <input 
                         placeholder="Phone Number"
-                        className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                        className="sm:col-span-2 w-full border border-gray-300 rounded-md p-2 text-sm"
                         value={newGuest.phone}
                         onChange={(e) => setNewGuest({...newGuest, phone: e.target.value})}
                     />
@@ -402,15 +386,14 @@ export default function NewBookingModal({
            </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50 rounded-b-xl">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg transition-colors">
+        <div className="p-6 border-t flex justify-end gap-3 bg-gray-50 rounded-b-xl">
+          <button onClick={onClose} className="px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg transition-colors">
             Cancel
           </button>
           <button 
             onClick={handleConfirmBooking}
             disabled={isSubmitting}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+            className="flex items-center px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 shadow-md"
           >
             {isSubmitting ? "Processing..." : (editingBooking ? "Update Booking" : "Confirm Booking")}
           </button>
