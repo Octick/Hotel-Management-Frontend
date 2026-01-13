@@ -1,16 +1,20 @@
 // app/dashboard/customer/RestaurantMenu/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import CustomerLayout from "../../../components/layout/CustomerLayout";
 import OrderSelectionModal from "./OrderSelectionModal";
 import OrderConfirmationModal from "./OrderConfirmationModal";
 import CustomOrderModal from "./CustomOrderModal"; // Add this import
 import { SelectedMenuItem } from "./OrderSelectionModal";
+import { AuthContext } from "@/app/context/AuthContext";
+import toast from "react-hot-toast";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 // Define the menu item interface based on NewMenuItemPopup()
 interface MenuItem {
-  id: string;
+  _id: string;
   name: string;
   category: string;
   description: string;
@@ -22,6 +26,7 @@ interface MenuItem {
 }
 
 export default function RestaurantMenuPage() {
+  const { token } = useContext(AuthContext);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,49 +36,30 @@ export default function RestaurantMenuPage() {
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
   const [selectedOrderItems, setSelectedOrderItems] = useState<SelectedMenuItem[]>([]);
 
-  // ADD API endpoint
+  // Fetch menu items from backend
   const fetchMenuItems = async () => {
+    if (!token) return;
+    
     try {
       setLoading(true);
-      // const response = await fetch("/api/menu-items");
-      // if (!response.ok) throw new Error("Failed to fetch menu items");
-      // const data = await response.json();
-      
-      // Temporary mock data
-      const mockData: MenuItem[] = [
-        {
-          id: "1",
-          name: "Grilled Salmon",
-          category: "Dinner",
-          description: "Fresh Atlantic salmon with herbs and lemon",
-          ingredients: ["Salmon", "Herbs", "Lemon", "Olive Oil"],
-          price: 28,
-          available: true
+      const response = await fetch(`${API_URL}/api/menu`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        {
-          id: "2",
-          name: "Continental Breakfast",
-          category: "Breakfast",
-          description: "Fresh pastries, fruits, coffee, and juice",
-          ingredients: ["Pastries", "Fruits", "Coffee", "Juice"],
-          price: 15,
-          available: true
-        },
-        {
-          id: "3",
-          name: "Caesar Salad",
-          category: "Lunch",
-          description: "Crisp romaine lettuce with Caesar dressing and croutons",
-          ingredients: ["Romaine Lettuce", "Caesar Dressing", "Croutons", "Parmesan"],
-          price: 12,
-          available: true
-        }
-      ];
-      
-      setMenuItems(mockData);
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch menu items");
+      }
+
+      const data = await response.json();
+      setMenuItems(data);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load menu");
       console.error("Error fetching menu items:", err);
+      toast.error("Failed to load menu items");
     } finally {
       setLoading(false);
     }
@@ -81,7 +67,7 @@ export default function RestaurantMenuPage() {
 
   useEffect(() => {
     fetchMenuItems();
-  }, []);
+  }, [token]);
 
   // Get unique categories for filter
   const categories = ["All", ...new Set(menuItems.map(item => item.category))];
@@ -121,7 +107,7 @@ export default function RestaurantMenuPage() {
   }) => {
     // Create a custom menu item for the order
     const customMenuItem: MenuItem = {
-      id: `custom-${Date.now()}`,
+      _id: `custom-${Date.now()}`,
       name: "Custom Order",
       category: "Custom",
       description: customOrderDetails.description,
@@ -222,7 +208,7 @@ export default function RestaurantMenuPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredItems.map((item) => (
               <div
-                key={item.id}
+                key={item._id}
                 className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow"
               >
                 {/* Image */}

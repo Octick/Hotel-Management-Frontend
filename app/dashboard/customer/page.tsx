@@ -1,77 +1,34 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import CustomerLayout from "../../components/layout/CustomerLayout";
-import { Calendar, CheckCircle, Star, Plus, Bed } from "lucide-react";
+import { Calendar, CheckCircle, Star, Plus, Bed, Loader2 } from "lucide-react";
 import NewBookingModal from "./NewBooking/NewBookingModal";
+import { AuthContext } from "@/app/context/AuthContext";
+import toast from "react-hot-toast";
 
-// Mock data
-interface User {
-  id: string;
-  name: string;
-  email: string;
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 interface Room {
-  id: string;
-  number: string;
+  _id: string;
+  roomNumber: string;
   type: string;
-  price: number;
+  rate: number;
 }
 
 interface Booking {
-  id: string;
-  roomId: string;
+  _id: string;
+  roomId: Room | string;
   checkIn: string;
   checkOut: string;
   status: string;
   totalAmount: number;
 }
 
-// Mock data
-const mockUser: User = {
-  id: "1",
-  name: "John Doe",
-  email: "john.doe@example.com",
-};
-
-const mockRooms: Room[] = [
-  { id: "1", number: "101", type: "single", price: 100 },
-  { id: "2", number: "102", type: "double", price: 150 },
-  { id: "3", number: "201", type: "suite", price: 300 },
-  { id: "4", number: "202", type: "single", price: 100 },
-];
-
-const mockBookings: Booking[] = [
-  {
-    id: "1",
-    roomId: "1",
-    checkIn: "2024-01-15",
-    checkOut: "2024-01-20",
-    status: "checked-out",
-    totalAmount: 500,
-  },
-  {
-    id: "2",
-    roomId: "2",
-    checkIn: "2024-02-01",
-    checkOut: "2024-02-05",
-    status: "confirmed",
-    totalAmount: 600,
-  },
-  {
-    id: "3",
-    roomId: "3",
-    checkIn: "2024-03-10",
-    checkOut: "2024-03-15",
-    status: "pending",
-    totalAmount: 1500,
-  },
-];
-
 // Helper functions
 const getBookingStatus = (status: string) => {
-  switch (status) {
+  const normalized = status.toLowerCase();
+  switch (normalized) {
     case "confirmed":
       return {
         text: "Confirmed",
@@ -84,15 +41,23 @@ const getBookingStatus = (status: string) => {
         color: "bg-yellow-100 text-yellow-800",
         icon: Calendar,
       };
+    case "checkedout":
     case "checked-out":
       return {
         text: "Completed",
         color: "bg-blue-100 text-blue-800",
         icon: CheckCircle,
       };
+    case "checkedin":
+    case "checked-in":
+      return {
+        text: "Checked In",
+        color: "bg-purple-100 text-purple-800",
+        icon: CheckCircle,
+      };
     default:
       return {
-        text: "Unknown",
+        text: status,
         color: "bg-gray-100 text-gray-800",
         icon: Calendar,
       };
@@ -100,28 +65,47 @@ const getBookingStatus = (status: string) => {
 };
 
 const getRoomTypeIcon = (type: string) => {
-  switch (type) {
-    case "single":
-      return <Bed className="h-4 w-4 text-blue-600" />;
-    case "double":
-      return <Bed className="h-4 w-4 text-blue-600" />;
-    case "suite":
-      return <Star className="h-4 w-4 text-blue-600" />;
-    default:
-      return <Bed className="h-4 w-4 text-blue-600" />;
+  const normalized = type?.toLowerCase() || "";
+  if (normalized.includes("suite") || normalized.includes("deluxe")) {
+    return <Star className="h-4 w-4 text-blue-600" />;
   }
+  return <Bed className="h-4 w-4 text-blue-600" />;
 };
 
 export default function CustomerDashboard() {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, profile, token } = useContext(AuthContext);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const fetchBookings = async () => {
+    if (!token) return;
+    
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_URL}/api/bookings`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBookings(data);
+      } else {
+        console.error("Failed to fetch bookings");
+      }
+    } catch (error) {
+      console.error("Error fetching bookings:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Simulate API calls
-    setUser(mockUser);
-    setBookings(mockBookings);
-  }, []);
+    fetchBookings();
+  }, [token]);
 
   const handleNewBooking = () => {
     setIsBookingModalOpen(true);
@@ -129,9 +113,20 @@ export default function CustomerDashboard() {
 
   const handleBookingComplete = () => {
     setIsBookingModalOpen(false);
-    // Optionally refresh bookings data here
-    console.log("New booking completed, refresh data if needed");
+    // Refresh bookings after creating a new one
+    fetchBookings();
+    toast.success("Booking created successfully!");
   };
+
+  if (loading) {
+    return (
+      <CustomerLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      </CustomerLayout>
+    );
+  }
 
   return (
     <CustomerLayout>
@@ -140,7 +135,7 @@ export default function CustomerDashboard() {
           {/* Welcome Section */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl p-6 text-white">
             <h2 className="text-2xl font-bold mb-2">
-              Welcome back, {user?.name}!
+              Welcome back, {profile?.name || user?.displayName || "Guest"}!
             </h2>
             <p className="text-blue-100">
               Manage your bookings and explore our services
@@ -159,7 +154,7 @@ export default function CustomerDashboard() {
             <div className="bg-white rounded-lg border border-gray-200 p-6 text-center shadow-sm">
               <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
               <div className="text-2xl font-bold text-gray-900">
-                {bookings.filter((b) => b.status === "checked-out").length}
+                {bookings.filter((b) => b.status.toLowerCase() === "checkedout" || b.status.toLowerCase() === "checked-out").length}
               </div>
               <div className="text-sm text-gray-600">Completed Stays</div>
             </div>
@@ -185,48 +180,55 @@ export default function CustomerDashboard() {
               </button>
             </div>
             <div className="space-y-4">
-              {bookings.slice(0, 3).map((booking) => {
-                const room = mockRooms.find((r) => r.id === booking.roomId);
-                const status = getBookingStatus(booking.status);
-                const StatusIcon = status.icon;
+              {bookings.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                  <p>No bookings yet. Create your first booking!</p>
+                </div>
+              ) : (
+                bookings.slice(0, 3).map((booking) => {
+                  const room = typeof booking.roomId === 'object' ? booking.roomId : null;
+                  const status = getBookingStatus(booking.status);
+                  const StatusIcon = status.icon;
 
-                return (
-                  <div
-                    key={booking.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          {getRoomTypeIcon(room?.type || "single")}
+                  return (
+                    <div
+                      key={booking._id}
+                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="p-2 bg-blue-100 rounded-lg">
+                            {getRoomTypeIcon(room?.type || "standard")}
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-gray-900">
+                              {room
+                                ? `Room ${room.roomNumber}`
+                                : `Booking #${booking._id.slice(-6)}`}
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                              {new Date(booking.checkIn).toLocaleDateString()} -{" "}
+                              {new Date(booking.checkOut).toLocaleDateString()}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-semibold text-gray-900">
-                            {room
-                              ? `Room ${room.number}`
-                              : `Room ${booking.roomId}`}
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            {new Date(booking.checkIn).toLocaleDateString()} -{" "}
-                            {new Date(booking.checkOut).toLocaleDateString()}
+                        <div className="text-right">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status.color}`}
+                          >
+                            <StatusIcon className="h-3 w-3 mr-1" />
+                            {status.text}
+                          </span>
+                          <p className="text-sm font-semibold text-gray-900 mt-1">
+                            ${booking.totalAmount}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status.color}`}
-                        >
-                          <StatusIcon className="h-3 w-3 mr-1" />
-                          {status.text}
-                        </span>
-                        <p className="text-sm font-semibold text-gray-900 mt-1">
-                          ${booking.totalAmount}
-                        </p>
-                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
