@@ -22,8 +22,7 @@ export default function Billing() {
   const [showBillForm, setShowBillForm] = useState(false);
   const [billToView, setBillToView] = useState<Bill | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
   // --- 1. FETCH DATA FROM BACKEND ---
   useEffect(() => {
     const fetchData = async () => {
