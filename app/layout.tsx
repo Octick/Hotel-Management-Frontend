@@ -3,7 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { AuthProvider } from "./context/AuthContext"; // <--- IMPORT THIS
+import { AuthProvider } from "./context/AuthContext";
+import { NotificationProvider } from "./context/NotificationContext"; // ✅ IMPORT THIS
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,10 +29,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {/* WRAP THE CHILDREN WITH AUTH PROVIDER */}
+        {/* WRAP AUTH PROVIDER FIRST, THEN NOTIFICATION PROVIDER */}
         <AuthProvider>
-          {children}
-          <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+          <NotificationProvider>
+            {children}
+            {/* Keep your existing ToastContainer for other app alerts */}
+            <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+          </NotificationProvider>
         </AuthProvider>
       </body>
     </html>

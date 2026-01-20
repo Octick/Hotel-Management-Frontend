@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAFk43CPz6wWp3dOrb5PJ4WLPbspAutNzk",
@@ -16,3 +17,4 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 // 2. Export 'auth' so your Login/Register forms can use it
 export const auth = getAuth(app);
+export const db = getFirestore(app);
