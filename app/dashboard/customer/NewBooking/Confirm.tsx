@@ -1,9 +1,8 @@
-// app/dashboard/customer/NewBooking/Confirm.tsx
 "use client";
 
 import { useState } from "react";
 import { BookingData } from "./NewBookingModal";
-import { auth } from "@/app/lib/firebase"; // Import Auth
+import { useAuth } from "@/app/context/AuthContext"; // ✅ Changed: Use Auth Context
 import toast from "react-hot-toast";
 
 interface ConfirmProps {
@@ -22,13 +21,16 @@ export default function Confirm({ data, prevStep, onComplete }: ConfirmProps) {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
 
+  // ✅ Get the profile from context (contains the MongoDB _id)
+  const { user, profile } = useAuth(); 
+
   const handleConfirm = async () => {
     if (!agreeToTerms) {
       toast.error("Please agree to the terms.");
       return;
     }
 
-    // Validation: We need a Room ID to book
+    // Validation: Room ID is required
     if (!data.roomId) {
         toast.error("No specific room selected. Please go to 'Explore Rooms' to select a room.");
         return;
@@ -38,22 +40,32 @@ export default function Confirm({ data, prevStep, onComplete }: ConfirmProps) {
     setError(null);
 
     try {
-      const user = auth.currentUser;
       if (!user) {
         throw new Error("You must be logged in to book.");
       }
+      
+      // ✅ Get MongoDB ID (Required by backend)
+      // fallback to user.uid or any custom id field if profile isn't fully loaded yet
+      const guestId = profile?._id || (user as any).mongoId; 
+
+      if (!guestId) {
+        throw new Error("User profile not fully loaded. Please refresh the page.");
+      }
+
       const token = await user.getIdToken();
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
       // 1. Prepare Payload matching Backend (bookings.ts)
       const payload = {
         roomId: data.roomId,
+        guestId: guestId, // ✅ CRITICAL FIX: Send the ID
         checkIn: data.bookingDetails.checkIn,
         checkOut: data.bookingDetails.checkOut,
-        // Optional: Pass guest details if backend supports it, 
-        // currently backend uses the logged-in user ID
+        status: "Confirmed",
+        source: "Online"
       };
 
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+      console.log("Booking Payload:", payload); // Debugging
 
       // 2. Call Backend
       const response = await fetch(`${API_URL}/api/bookings`, {
@@ -73,6 +85,7 @@ export default function Confirm({ data, prevStep, onComplete }: ConfirmProps) {
 
       setIsConfirmed(true);
       toast.success("Booking successful!");
+      if (onComplete) onComplete(); // Trigger parent cleanup if needed
 
     } catch (err: any) {
       console.error("Booking error:", err);
@@ -82,8 +95,6 @@ export default function Confirm({ data, prevStep, onComplete }: ConfirmProps) {
       setIsLoading(false);
     }
   };
-
-  // ... (Keep the rest of your formatting helper functions: formatDate, calculateDuration, etc.) ...
 
   // Helper to format date
   const formatDate = (dateString: string) => {
@@ -134,7 +145,7 @@ export default function Confirm({ data, prevStep, onComplete }: ConfirmProps) {
             </div>
             <div>
                 <p className="text-gray-500">Room Type</p>
-                <p className="font-medium">{data.bookingDetails.roomType}</p>
+                <p className="font-medium">{data.bookingDetails.roomType || "Standard"}</p>
             </div>
             <div>
                 <p className="text-gray-500">Guests</p>
