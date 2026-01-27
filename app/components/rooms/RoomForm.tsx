@@ -1,17 +1,21 @@
 "use client";
 
-import { X, Save } from "lucide-react";
-import { auth } from "@/app/lib/firebase"; 
+import { auth } from "@/app/lib/firebase";
+import { Save, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 type RoomStatus = "available" | "occupied" | "reserved" | "cleaning" | "maintenance";
 type RoomType = "single" | "double" | "suite" | "family";
+type RoomTier = "Deluxe" | "Normal";
 
 interface Room {
   id: string;
   _id?: string;
+  name?: string;
   number: string;
   type: RoomType;
+  tier?: RoomTier;
   status: RoomStatus;
   rate: number;
   amenities: string[];
@@ -42,12 +46,43 @@ export default function RoomForm({
   onSave,
   readOnly = false, // ✅ ADDED: Default to false
 }: RoomFormProps) {
+  const [floors, setFloors] = useState<number[]>([0]);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const user = auth.currentUser; if (!user) return;
+        const token = await user.getIdToken();
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+        const res = await fetch(`${API_URL}/api/settings/floors`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          // Always include ground (0) even if backend omits it
+          const uniqueFloors = Array.from(new Set([0, ...(data.floors || [])]));
+          const list = uniqueFloors.sort((a: number, b: number) => a - b);
+          setFloors(list);
+          // Ensure selected floor is valid; default to first (ground) if not
+          if (newRoom.floor === undefined || newRoom.floor === null || Number.isNaN(newRoom.floor) || !list.includes(newRoom.floor)) {
+            setNewRoom({ ...newRoom, floor: list[0] ?? 0 });
+          }
+        }
+      } catch (e) {
+        console.error("Failed to fetch floors", e);
+      }
+    };
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSave = async () => {
     if (readOnly) return; // Prevent save in read-only mode
     if (Object.keys(errors).length > 0) return;
 
     try {
+      if (newRoom.floor === undefined || newRoom.floor === null || Number.isNaN(newRoom.floor)) {
+        toast.error("Floor is required.");
+        return;
+      }
       const user = auth.currentUser;
       if (!user) {
         toast.error("You must be logged in.");
@@ -58,9 +93,11 @@ export default function RoomForm({
       const backendStatus = newRoom.status.charAt(0).toUpperCase() + newRoom.status.slice(1);
 
       const payload = {
-        roomNumber: newRoom.number, 
+        name: newRoom.name?.trim() || undefined,
+        roomNumber: newRoom.number,
         type: newRoom.type,
-        status: backendStatus, 
+        tier: newRoom.tier || 'Normal',
+        status: backendStatus,
         rate: Number(newRoom.rate),
         floor: Number(newRoom.floor),
         maxOccupancy: Number(newRoom.maxOccupancy),
@@ -68,14 +105,14 @@ export default function RoomForm({
       };
 
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-      
+
       const roomId = editingRoom?.id || editingRoom?._id;
 
       // Use PUT for editing (full update)
-      const url = editingRoom 
-        ? `${API_URL}/api/rooms/${roomId}` 
+      const url = editingRoom
+        ? `${API_URL}/api/rooms/${roomId}`
         : `${API_URL}/api/rooms`;
-      
+
       const method = editingRoom ? "PUT" : "POST";
 
       const response = await fetch(url, {
@@ -93,7 +130,7 @@ export default function RoomForm({
       }
 
       toast.success(editingRoom ? "Room updated!" : "Room created!");
-      onSave(); 
+      onSave();
 
     } catch (error: any) {
       console.error("Failed to save room:", error);
@@ -113,6 +150,18 @@ export default function RoomForm({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Room Name */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Room Name</label>
+          <input
+            type="text"
+            disabled={readOnly}
+            value={newRoom.name || ""}
+            onChange={(e) => setNewRoom({ ...newRoom, name: e.target.value })}
+            className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-black focus:ring-2 focus:ring-blue-500 outline-none ${readOnly ? 'bg-gray-100' : ''}`}
+            placeholder="e.g. Ocean View Suite"
+          />
+        </div>
         {/* Room Number */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Room Number *</label>
@@ -139,6 +188,20 @@ export default function RoomForm({
             <option value="double">Double</option>
             <option value="suite">Suite</option>
             <option value="family">Family</option>
+          </select>
+        </div>
+
+        {/* Room Tier */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <select
+            disabled={readOnly}
+            value={newRoom.tier || "Normal"}
+            onChange={(e) => setNewRoom({ ...newRoom, tier: e.target.value as RoomTier })}
+            className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-black focus:ring-2 focus:ring-blue-500 outline-none ${readOnly ? 'bg-gray-100' : ''}`}
+          >
+            <option value="Normal">Normal</option>
+            <option value="Deluxe">Deluxe</option>
           </select>
         </div>
 
@@ -174,15 +237,17 @@ export default function RoomForm({
 
         {/* Floor */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Floor</label>
-          <input
-            type="number"
+          <label className="block text-sm font-medium text-gray-700 mb-1">Floor *</label>
+          <select
             disabled={readOnly}
-            value={newRoom.floor || ""}
-            onChange={(e) => setNewRoom({ ...newRoom, floor: parseInt(e.target.value) || 1 })}
+            value={newRoom.floor ?? 0}
+            onChange={(e) => setNewRoom({ ...newRoom, floor: parseInt(e.target.value) })}
             className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-black focus:ring-2 focus:ring-blue-500 outline-none ${readOnly ? 'bg-gray-100' : ''}`}
-            min="1"
-          />
+          >
+            {floors.map((f) => (
+              <option key={f} value={f}>{f === 0 ? 'Ground' : `Floor ${f}`}</option>
+            ))}
+          </select>
         </div>
 
         {/* Max Occupancy */}
@@ -227,13 +292,13 @@ export default function RoomForm({
         {/* ✅ FIXED: Hide Save button in read-only mode */}
         {!readOnly && (
           <div className="md:col-span-3 flex justify-end">
-             <button
+            <button
               onClick={handleSave}
               className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition flex items-center font-medium"
-             >
-               <Save className="w-4 h-4 mr-2" />
-               {editingRoom ? "Update Room" : "Save Room"}
-             </button>
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {editingRoom ? "Update Room" : "Save Room"}
+            </button>
           </div>
         )}
       </div>

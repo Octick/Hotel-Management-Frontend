@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { auth } from "@/app/lib/firebase";
+import { Filter, Grid, List, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast"; // Using hot-toast for consistency
 import AdminReceptionistLayout from "../../../components/layout/AdminReceptionistLayout";
+import CheckInForm from "../../../components/rooms/CheckInForm";
 import RoomFilters from "../../../components/rooms/RoomFilters";
 import RoomForm from "../../../components/rooms/RoomForm";
-import CheckInForm from "../../../components/rooms/CheckInForm";
 import RoomsList from "../../../components/rooms/RoomsList";
-import { Grid, List, Plus, Filter } from "lucide-react";
-import { auth } from "@/app/lib/firebase";
 
 type RoomStatus =
   | "available"
@@ -21,8 +21,10 @@ type RoomType = "single" | "double" | "suite" | "family";
 
 export interface Room {
   id: string;
+  name?: string;
   number: string;
   type: RoomType;
+  tier?: "Deluxe" | "Normal";
   status: RoomStatus;
   rate: number;
   amenities: string[];
@@ -36,7 +38,7 @@ export default function Rooms() {
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [isViewOnly, setIsViewOnly] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  
+
   // Data State
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,14 +64,19 @@ export default function Rooms() {
   // New/Edit Room state template
   const [newRoom, setNewRoom] = useState<Room>({
     id: "",
+    name: "",
     number: "",
     type: "single",
+    tier: "Normal",
     status: "available",
     rate: 0,
     amenities: [],
     maxOccupancy: 1,
-    floor: 1,
+    floor: 0,
   });
+
+  // Floors
+  const [floors, setFloors] = useState<number[]>([0]);
 
   // --- Data Fetching ---
   const fetchRooms = async () => {
@@ -80,7 +87,7 @@ export default function Rooms() {
 
       const token = await user.getIdToken();
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-      
+
       const res = await fetch(`${API_URL}/api/rooms`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -88,16 +95,18 @@ export default function Rooms() {
       if (res.ok) {
         const data = await res.json();
         const mappedRooms = data.map((r: any) => ({
-            id: r._id,
-            number: r.roomNumber, 
-            type: r.type,
-            status: r.status.toLowerCase(), 
-            rate: r.rate,
-            amenities: r.amenities,
-            maxOccupancy: r.maxOccupancy,
-            floor: r.floor
+          id: r._id,
+          name: r.name,
+          number: r.roomNumber,
+          type: r.type,
+          tier: r.tier || 'Normal',
+          status: r.status.toLowerCase(),
+          rate: r.rate,
+          amenities: r.amenities,
+          maxOccupancy: r.maxOccupancy,
+          floor: r.floor
         }));
-        
+
         setRooms(mappedRooms);
       } else {
         console.error("Failed to fetch rooms");
@@ -113,14 +122,32 @@ export default function Rooms() {
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
-        if (user) {
-            fetchRooms();
-        } else {
-            setLoading(false);
-        }
+      if (user) {
+        fetchRooms();
+      } else {
+        setLoading(false);
+      }
     });
     return () => unsubscribe();
   }, []);
+
+  const fetchFloors = async () => {
+    try {
+      const user = auth.currentUser; if (!user) return;
+      const token = await user.getIdToken();
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+      const res = await fetch(`${API_URL}/api/settings/floors`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        const uniqueFloors = Array.from(new Set([0, ...(data.floors || [])]));
+        setFloors(uniqueFloors.sort((a: number, b: number) => a - b));
+      }
+    } catch (e) {
+      console.error("Failed to fetch floors", e);
+    }
+  };
+
+  useEffect(() => { fetchFloors(); }, []);
 
   // --- Handlers ---
   const resetRoomForm = () => {
@@ -132,7 +159,7 @@ export default function Rooms() {
       rate: 0,
       amenities: [],
       maxOccupancy: 1,
-      floor: 1,
+      floor: 0,
     });
     setEditingRoom(null);
     setIsViewOnly(false);
@@ -159,8 +186,8 @@ export default function Rooms() {
 
   const handleCheckOut = async (room: Room) => {
     if (window.confirm(`Check out guest from Room ${room.number}?`)) {
-        handleStatusChange(room.id, "cleaning");
-        toast.success(`Guest checked out from Room ${room.number}`);
+      handleStatusChange(room.id, "cleaning");
+      toast.success(`Guest checked out from Room ${room.number}`);
     }
   };
 
@@ -178,6 +205,25 @@ export default function Rooms() {
     setShowAddForm(true);
   };
 
+  const handleDuplicateRoom = (room: Room) => {
+    setEditingRoom(null);
+    setNewRoom({
+      id: "",
+      name: room.name,
+      number: "",
+      type: room.type,
+      tier: room.tier || 'Normal',
+      status: room.status,
+      rate: room.rate,
+      amenities: room.amenities,
+      maxOccupancy: room.maxOccupancy,
+      floor: room.floor,
+    });
+    setIsViewOnly(false);
+    setShowAddForm(true);
+    toast.success("Duplicate mode: enter new room number");
+  };
+
   const handleDeleteRoom = async (room: Room) => {
     if (window.confirm(`Are you sure you want to delete Room ${room.number}?`)) {
       try {
@@ -187,15 +233,15 @@ export default function Rooms() {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
         const res = await fetch(`${API_URL}/api/rooms/${room.id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` }
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
         });
 
         if (res.ok) {
-            toast.success(`Room ${room.number} deleted successfully`);
-            fetchRooms(); 
+          toast.success(`Room ${room.number} deleted successfully`);
+          fetchRooms();
         } else {
-            throw new Error("Failed to delete");
+          throw new Error("Failed to delete");
         }
       } catch (e) {
         console.error(e);
@@ -213,25 +259,25 @@ export default function Rooms() {
     );
 
     try {
-        const user = auth.currentUser;
-        if (!user) return;
-        const token = await user.getIdToken();
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+      const user = auth.currentUser;
+      if (!user) return;
+      const token = await user.getIdToken();
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
-        const backendStatus = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
+      const backendStatus = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
 
-        await fetch(`${API_URL}/api/rooms/${roomId}/status`, {
-            method: 'PATCH',
-            headers: { 
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}` 
-            },
-            body: JSON.stringify({ status: backendStatus })
-        });
+      await fetch(`${API_URL}/api/rooms/${roomId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: backendStatus })
+      });
     } catch (error) {
-        console.error("Status update failed", error);
-        toast.error("Failed to update status on server");
-        fetchRooms(); // Revert
+      console.error("Status update failed", error);
+      toast.error("Failed to update status on server");
+      fetchRooms(); // Revert
     }
   };
 
@@ -287,9 +333,7 @@ export default function Rooms() {
 
   const floorOptions = [
     { value: "all", label: "All Floors" },
-    { value: "1", label: "Floor 1" },
-    { value: "2", label: "Floor 2" },
-    { value: "3", label: "Floor 3" },
+    ...[...floors].sort((a, b) => a - b).map(f => ({ value: String(f), label: f === 0 ? "Ground" : `Floor ${f}` }))
   ];
 
   return (
@@ -309,21 +353,19 @@ export default function Rooms() {
             <div className="flex items-center bg-gray-100 rounded-xl p-1">
               <button
                 onClick={() => setViewMode("grid")}
-                className={`p-2 rounded-lg transition-colors ${
-                  viewMode === "grid"
+                className={`p-2 rounded-lg transition-colors ${viewMode === "grid"
                     ? "bg-white shadow-soft text-blue-600"
                     : "text-gray-600 hover:text-gray-900"
-                }`}
+                  }`}
               >
                 <Grid className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setViewMode("list")}
-                className={`p-2 rounded-lg transition-colors ${
-                  viewMode === "list"
+                className={`p-2 rounded-lg transition-colors ${viewMode === "list"
                     ? "bg-white shadow-soft text-blue-600"
                     : "text-gray-600 hover:text-gray-900"
-                }`}
+                  }`}
               >
                 <List className="h-4 w-4" />
               </button>
@@ -332,8 +374,8 @@ export default function Rooms() {
             <button
               className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition group"
               onClick={() => {
-                  setShowAddForm(true);
-                  setIsViewOnly(false);
+                setShowAddForm(true);
+                setIsViewOnly(false);
               }}
             >
               <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform" />
@@ -435,10 +477,10 @@ export default function Rooms() {
               Filtered by:{" "}
               {statusFilter !== "all" && `Status: ${statusFilter} `}
               {typeFilter !== "all" && `Type: ${typeFilter} `}
-              {floorFilter !== "all" && `Floor: ${floorFilter}`}
+              {floorFilter !== "all" && `Floor: ${floorFilter === "0" ? "Ground" : floorFilter}`}
               {statusFilter === "all" &&
-              typeFilter === "all" &&
-              floorFilter === "all"
+                typeFilter === "all" &&
+                floorFilter === "all"
                 ? "All"
                 : ""}
             </span>
@@ -447,13 +489,14 @@ export default function Rooms() {
 
         {/* Rooms List */}
         {loading ? (
-           <div className="text-center py-12">Loading rooms...</div>
+          <div className="text-center py-12">Loading rooms...</div>
         ) : (
           <RoomsList
             rooms={filteredRooms}
             viewMode={viewMode}
             onEdit={handleEditRoom}
             onView={handleViewRoom}
+            onDuplicate={handleDuplicateRoom}
             onStatusChange={handleStatusChange}
             onCheckIn={handleCheckIn}
             onCheckOut={handleCheckOut}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Filter } from "lucide-react";
+import { Filter, Search } from "lucide-react";
 
 interface RoomFiltersProps {
   searchTerm: string;
@@ -49,7 +49,7 @@ export default function RoomFilters({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Room number..."
+              placeholder="Room name or number..."
               className="w-full border border-gray-300 rounded-lg px-3 py-2 pl-10 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>

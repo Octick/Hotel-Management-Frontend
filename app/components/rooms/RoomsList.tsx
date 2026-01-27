@@ -1,8 +1,8 @@
 "use client";
 
+import { Edit, Eye, Trash2 } from "lucide-react";
 import React from "react";
 import RoomCard, { Room } from "./RoomCard";
-import { Edit, Eye, Trash2 } from "lucide-react";
 // Removed unnecessary imports (toast, auth) since this is now just a UI component
 
 interface RoomsListProps {
@@ -10,6 +10,7 @@ interface RoomsListProps {
   viewMode: "grid" | "list";
   onEdit: (room: Room) => void;
   onView: (room: Room) => void;
+  onDuplicate: (room: Room) => void;
   onStatusChange: (roomId: string, status: any) => void;
   onCheckIn: (room: Room) => void;
   onCheckOut: (room: Room) => void;
@@ -21,15 +22,16 @@ export default function RoomsList({
   viewMode,
   onEdit,
   onView,
+  onDuplicate,
   onStatusChange,
   onCheckIn,
   onCheckOut,
   onDelete,
 }: RoomsListProps): React.ReactElement {
-  
+
   // ✅ FIX: Removed redundant handleDelete and handleStatusChange with API calls.
   // We now pass the props directly to the UI elements.
-  
+
   if (rooms.length === 0)
     return (
       <div className="text-center py-12 text-gray-600">
@@ -49,6 +51,7 @@ export default function RoomsList({
             room={room}
             onEdit={onEdit}
             onView={onView}
+            onDuplicate={onDuplicate}
             // Pass the parent's handler directly
             onStatusChange={onStatusChange}
             onCheckIn={onCheckIn}
@@ -79,72 +82,79 @@ export default function RoomsList({
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {rooms.map((room) => {
-             const roomId = room.id || room._id;
-             return (
-            <tr key={roomId} className="hover:bg-gray-50">
-              <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                Room {room.number || room.roomNumber}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap capitalize text-gray-900">
-                {room.type}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                    room.status?.toLowerCase() === "available"
-                      ? "bg-green-100 text-green-800 border-green-200"
-                      : room.status?.toLowerCase() === "occupied"
-                      ? "bg-red-100 text-red-800 border-red-200"
-                      : room.status?.toLowerCase() === "reserved"
-                      ? "bg-blue-100 text-blue-800 border-blue-200"
-                      : room.status?.toLowerCase() === "cleaning"
-                      ? "bg-yellow-100 text-yellow-800 border-yellow-200"
-                      : "bg-gray-100 text-gray-800 border-gray-200"
-                  }`}
-                >
-                  {room.status}
-                </span>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                ${room.rate}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {room.floor}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center gap-2">
-                <button
-                  onClick={() => onView(room)}
-                  className="p-2 rounded-md hover:bg-gray-100"
-                  title="View Room"
-                >
-                  <Eye className="h-5 w-5 text-indigo-600" />
-                </button>
-
-                <button
-                  onClick={() => onEdit(room)}
-                  className="p-2 rounded-md hover:bg-gray-100"
-                  title="Edit Room"
-                >
-                  <Edit className="h-5 w-5 text-blue-600" />
-                </button>
-                {room.status?.toLowerCase() === "cleaning" && (
-                  <button
-                    onClick={() => onStatusChange(roomId!, "available")}
-                    className="text-green-600 hover:text-green-800"
+            const roomId = room.id || room._id;
+            return (
+              <tr key={roomId} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
+                  {room.name || `Room ${room.number || room.roomNumber}`}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap capitalize text-gray-900">
+                  {room.type} • {room.tier || 'Normal'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${room.status?.toLowerCase() === "available"
+                        ? "bg-green-100 text-green-800 border-green-200"
+                        : room.status?.toLowerCase() === "occupied"
+                          ? "bg-red-100 text-red-800 border-red-200"
+                          : room.status?.toLowerCase() === "reserved"
+                            ? "bg-blue-100 text-blue-800 border-blue-200"
+                            : room.status?.toLowerCase() === "cleaning"
+                              ? "bg-yellow-100 text-yellow-800 border-yellow-200"
+                              : "bg-gray-100 text-gray-800 border-gray-200"
+                      }`}
                   >
-                    Mark Clean
+                    {room.status}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  ${room.rate}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {room.floor}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center gap-2">
+                  <button
+                    onClick={() => onView(room)}
+                    className="p-2 rounded-md hover:bg-gray-100"
+                    title="View Room"
+                  >
+                    <Eye className="h-5 w-5 text-indigo-600" />
                   </button>
-                )}
-                {/* Delete button: Simply calls the parent function */}
-                <button
-                  onClick={() => onDelete(room)}
-                  className="text-red-600 hover:text-red-800"
-                >
-                  <Trash2 className="h-5 w-5 text-red-600" />
-                </button>
-              </td>
-            </tr>
-          )})}
+
+                  <button
+                    onClick={() => onEdit(room)}
+                    className="p-2 rounded-md hover:bg-gray-100"
+                    title="Edit Room"
+                  >
+                    <Edit className="h-5 w-5 text-blue-600" />
+                  </button>
+                  <button
+                    onClick={() => onDuplicate(room)}
+                    className="p-2 rounded-md hover:bg-gray-100"
+                    title="Duplicate Room"
+                  >
+                    <Edit className="h-5 w-5 text-purple-600 rotate-90" />
+                  </button>
+                  {room.status?.toLowerCase() === "cleaning" && (
+                    <button
+                      onClick={() => onStatusChange(roomId!, "available")}
+                      className="text-green-600 hover:text-green-800"
+                    >
+                      Mark Clean
+                    </button>
+                  )}
+                  {/* Delete button: Simply calls the parent function */}
+                  <button
+                    onClick={() => onDelete(room)}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <Trash2 className="h-5 w-5 text-red-600" />
+                  </button>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

@@ -1,35 +1,36 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import { auth } from "@/app/lib/firebase";
 import {
-  Bed,
-  Users,
-  Wifi,
-  Tv,
-  Wind,
-  Coffee,
-  MapPin,
-  CheckCircle,
-  Clock,
   AlertTriangle,
+  Bed,
+  CheckCircle,
+  ChevronDown,
+  Clock,
+  Coffee,
   Edit,
   Eye,
-  Trash2,
-  LogIn,
   LogOut,
+  MapPin,
+  Trash2,
+  Tv,
   User,
-  ChevronDown,
+  Users,
+  Wifi,
+  Wind
 } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { auth } from "@/app/lib/firebase";
 
 // --- Type Definitions ---
 export interface Room {
   id: string;
   _id?: string; // Added fallback for Mongo
+  name?: string;
   number: string;
   roomNumber?: string; // Added fallback
   type: "single" | "double" | "suite" | "family";
+  tier?: "Deluxe" | "Normal";
   status: "available" | "occupied" | "reserved" | "cleaning" | "maintenance";
   rate: number;
   amenities: string[];
@@ -67,6 +68,7 @@ export interface Booking {
 interface RoomCardProps {
   room: Room;
   onEdit?: (room: Room) => void;
+  onDuplicate?: (room: Room) => void;
   onStatusChange?: (roomId: string, status: any) => void;
   onView?: (room: Room) => void;
   onDelete?: (room: Room) => void;
@@ -79,6 +81,7 @@ interface RoomCardProps {
 function RoomCard({
   room,
   onEdit,
+  onDuplicate,
   onStatusChange,
   onView,
   onDelete,
@@ -87,28 +90,29 @@ function RoomCard({
   guest,
   booking,
 }: RoomCardProps): React.ReactElement {
-  
+
   // Safe ID and Number extraction
   const roomId = room.id || room._id;
   const roomNum = room.number || room.roomNumber;
+  const roomName = room.name || roomNum;
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
   // Helper to get token
   const getToken = async () => {
     const user = auth.currentUser;
-    if(!user) throw new Error("Not authenticated");
+    if (!user) throw new Error("Not authenticated");
     return await user.getIdToken();
   };
 
   // handleCheckIn Function
   const handleCheckIn = async (room: Room) => {
     if (onCheckIn) {
-        onCheckIn(room);
-        return;
+      onCheckIn(room);
+      return;
     }
     // Fallback internal logic
     try {
-      if(!booking) {
+      if (!booking) {
         toast.error("No booking found to check in.");
         return;
       }
@@ -125,7 +129,7 @@ function RoomCard({
 
       if (!response.ok) throw new Error(`API Error: ${response.status}`);
       toast.success("Guest Checked In");
-      window.location.reload(); 
+      window.location.reload();
 
     } catch (error) {
       console.error("Failed to check in:", error);
@@ -137,18 +141,18 @@ function RoomCard({
   // handleCheckOut Function
   const handleCheckOut = async (room: Room) => {
     if (onCheckOut) {
-        onCheckOut(room);
-        return;
+      onCheckOut(room);
+      return;
     }
     // Fallback internal logic
     try {
-      if(!booking) {
+      if (!booking) {
         handleStatusChange(roomId!, 'cleaning');
         return;
       }
       const token = await getToken();
       const endpoint = `${API_URL}/api/bookings/${booking.id}/checkout`;
-      
+
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -180,7 +184,7 @@ function RoomCard({
       const token = await getToken();
       const backendStatus = status.charAt(0).toUpperCase() + status.slice(1);
       const endpoint = `${API_URL}/api/rooms/${rId}/status`;
-      
+
       const response = await fetch(endpoint, {
         method: "PATCH",
         headers: {
@@ -205,8 +209,8 @@ function RoomCard({
   const handleDelete = async (room: Room) => {
     // Delegate to parent if available (Stops double delete)
     if (onDelete) {
-        onDelete(room);
-        return;
+      onDelete(room);
+      return;
     }
 
     // Only run this if NO parent handler is provided
@@ -215,7 +219,7 @@ function RoomCard({
     try {
       const token = await getToken();
       const endpoint = `${API_URL}/api/rooms/${roomId}`;
-      
+
       const response = await fetch(endpoint, {
         method: "DELETE",
         headers: {
@@ -236,9 +240,9 @@ function RoomCard({
 
   // handleView Function
   const handleView = async (room: Room) => {
-    if(onView) {
-        onView(room);
-        return;
+    if (onView) {
+      onView(room);
+      return;
     }
     toast.success("View action triggered");
   };
@@ -246,9 +250,9 @@ function RoomCard({
 
   // handleEdit Function
   const handleEdit = async (room: Room) => {
-    if(onEdit) {
-        onEdit(room);
-        return;
+    if (onEdit) {
+      onEdit(room);
+      return;
     }
     toast.success("Edit action triggered");
   };
@@ -311,6 +315,13 @@ function RoomCard({
     }
   };
 
+  const getTierConfig = (tier?: string) => {
+    const t = (tier || "Normal").toLowerCase();
+    return t === "deluxe"
+      ? { label: "Deluxe", classes: "bg-amber-100 text-amber-800 border-amber-200" }
+      : { label: "Normal", classes: "bg-slate-100 text-slate-800 border-slate-200" };
+  };
+
   const getAmenityIcon = (amenity: string) => {
     switch (amenity.toLowerCase()) {
       case "wifi": return <Wifi className="h-3 w-3" />;
@@ -323,6 +334,7 @@ function RoomCard({
 
   const statusConfig = getStatusConfig(room.status);
   const StatusIcon = statusConfig.icon;
+  const tierConfig = getTierConfig(room.tier);
 
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -347,11 +359,16 @@ function RoomCard({
           </div>
           <div>
             <h3 className="text-xl font-bold text-gray-900">
-              Room {roomNum}
+              {roomName}
             </h3>
-            <p className="text-sm text-gray-600 font-medium capitalize">
-              {room.type} • Floor {room.floor}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-gray-600 font-medium capitalize">
+                Room {roomNum} • {room.type} • Floor {room.floor === 0 ? "Ground" : room.floor}
+              </p>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${tierConfig.classes}`}>
+                {tierConfig.label}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -372,8 +389,8 @@ function RoomCard({
                 <button
                   key={status}
                   onClick={() => {
-                     handleStatusChange(roomId!, status);
-                     setShowDropdown(false);
+                    handleStatusChange(roomId!, status);
+                    setShowDropdown(false);
                   }}
                   className="block w-full text-left px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 capitalize"
                 >
@@ -435,9 +452,9 @@ function RoomCard({
       {/* Actions */}
       <div className="flex justify-between items-center space-x-2">
         <div className="flex-1 flex justify-center">
-          
+
           {/* ✅ REMOVED: LogIn (Green Enter Icon) button */}
-          
+
           {room.status === "occupied" && onCheckOut && (
             <button onClick={() => handleCheckOut(room)} className="bg-yellow-100 text-yellow-600 p-2 rounded-lg hover:bg-yellow-200 flex-1 max-w-[50px] flex justify-center">
               <LogOut className="h-4 w-4" />
@@ -468,6 +485,11 @@ function RoomCard({
           {onEdit && (
             <button onClick={() => handleEdit(room)} className="bg-purple-100 text-purple-600 p-2 rounded-lg hover:bg-purple-200 flex-1 max-w-[50px] flex justify-center">
               <Edit className="h-4 w-4" />
+            </button>
+          )}
+          {onDuplicate && (
+            <button onClick={() => onDuplicate(room)} className="bg-indigo-100 text-indigo-600 p-2 rounded-lg hover:bg-indigo-200 flex-1 max-w-[50px] flex justify-center" title="Duplicate Room">
+              <ChevronDown className="h-4 w-4 rotate-90" />
             </button>
           )}
           {/* Delete Button */}
