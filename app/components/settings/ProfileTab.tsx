@@ -1,10 +1,10 @@
 /* */
 "use client";
-import React, { useState, useEffect } from "react";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { Save } from "lucide-react";
+import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { useAuth } from "../../context/AuthContext";
-import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 
 export default function ProfileTab() {
   const { user, token } = useAuth();
@@ -17,16 +17,21 @@ export default function ProfileTab() {
       if (!token) return;
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/me`, {
-           headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (!res.ok) {
+          throw new Error(`Failed to fetch profile: ${res.status}`);
+        }
         const data = await res.json();
         setProfile({
-            fullName: data.name || "",
-            email: data.email || "",
-            phone: data.phone || "",
-            role: data.roles?.[0] || "admin"
+          fullName: data.name || "",
+          email: data.email || "",
+          phone: data.phone || "",
+          role: data.roles?.[0] || "admin"
         });
-      } catch (err) { console.error(err); }
+      } catch (err) {
+        console.error(err);
+      }
     };
     fetchProfile();
   }, [token]);
@@ -41,9 +46,13 @@ export default function ProfileTab() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ name: profile.fullName, phone: profile.phone })
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        throw new Error(`Failed to update profile: ${res.status}`);
+      }
       toast.success("✅ Profile updated successfully!");
-    } catch (err) { toast.error("❌ Failed to update profile."); } 
+    } catch (err: any) {
+      toast.error(err.message || "❌ Failed to update profile.");
+    }
     finally { setLoading(false); }
   };
 
@@ -52,13 +61,13 @@ export default function ProfileTab() {
     if (passwords.newPass !== passwords.confirmPass) return toast.error("Passwords do not match");
     if (!user) return;
     try {
-        setLoading(true);
-        const credential = EmailAuthProvider.credential(user.email!, passwords.current);
-        await reauthenticateWithCredential(user, credential);
-        await updatePassword(user, passwords.newPass);
-        toast.success("🔒 Password updated successfully!");
-        setPasswords({ current: "", newPass: "", confirmPass: "" });
-    } catch (err: any) { toast.error(`❌ ${err.message}`); } 
+      setLoading(true);
+      const credential = EmailAuthProvider.credential(user.email!, passwords.current);
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, passwords.newPass);
+      toast.success("🔒 Password updated successfully!");
+      setPasswords({ current: "", newPass: "", confirmPass: "" });
+    } catch (err: any) { toast.error(`❌ ${err.message}`); }
     finally { setLoading(false); }
   };
 

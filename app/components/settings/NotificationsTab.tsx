@@ -1,12 +1,12 @@
 /* */
 "use client";
-import React, { useState, useEffect } from "react";
-import { useAuth } from "../../context/AuthContext";
+import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import { useAuth } from "../../context/AuthContext";
 
 export default function NotificationsTab() {
   const { token } = useAuth();
-  
+
   // State maps to backend fields
   const [prefs, setPrefs] = useState({
     emailNotifications: true,
@@ -17,18 +17,23 @@ export default function NotificationsTab() {
   // Fetch Preferences
   useEffect(() => {
     const fetchSettings = async () => {
-        if (!token) return;
-        try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/settings`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            setPrefs({
-                emailNotifications: data.emailNotifications ?? true,
-                smsNotifications: data.smsNotifications ?? false,
-                lowStockAlerts: data.lowStockAlerts ?? true
-            });
-        } catch (e) { console.error(e); }
+      if (!token) return;
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/settings`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          throw new Error(`Failed to fetch settings: ${res.status}`);
+        }
+        const data = await res.json();
+        setPrefs({
+          emailNotifications: data.emailNotifications ?? true,
+          smsNotifications: data.smsNotifications ?? false,
+          lowStockAlerts: data.lowStockAlerts ?? true
+        });
+      } catch (e) {
+        console.error(e);
+      }
     };
     fetchSettings();
   }, [token]);
@@ -39,23 +44,22 @@ export default function NotificationsTab() {
     setPrefs(newPrefs); // Optimistic UI update
 
     try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/settings`, {
-            method: 'PUT',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` 
-            },
-            body: JSON.stringify(newPrefs)
-        });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newPrefs)
+      });
 
-        if (res.ok) {
-            toast.success("Preference saved");
-        } else {
-            throw new Error();
-        }
-    } catch (err) {
-        toast.error("Failed to save preference");
-        setPrefs(prefs); // Revert on error
+      if (!res.ok) {
+        throw new Error(`Failed to save preference: ${res.status}`);
+      }
+      toast.success("Preference saved");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save preference");
+      setPrefs(prefs); // Revert on error
     }
   };
 

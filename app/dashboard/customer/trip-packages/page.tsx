@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect, useContext } from "react";
+import { AuthContext } from "@/app/context/AuthContext";
+import { Calendar, Car, Clock, Loader2, MapPin, Users } from "lucide-react";
+import { useContext, useEffect, useState } from "react";
 import CustomerLayout from "../../../components/layout/CustomerLayout";
 import BookingModal from "./BookingModal";
 import CustomTripModal from "./CustomTripModal";
-import { AuthContext } from "@/app/context/AuthContext";
-import { Loader2 } from "lucide-react";
 
 interface Package {
-    id: string; // Changed to string to match MongoDB _id
+    id: string;
     _id?: string;
     name: string;
     description: string;
@@ -19,6 +19,7 @@ interface Package {
     status: string;
     location: string;
     image?: string;
+    images?: string[];
 }
 
 export default function CustomerTripPackages() {
@@ -40,17 +41,16 @@ export default function CustomerTripPackages() {
         try {
             setLoading(true);
             const response = await fetch(`${API_URL}/api/trips`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
             });
-            
+
             if (response.ok) {
                 const data = await response.json();
-                // Map _id to id if necessary, filter only Active packages for customers
                 const mappedPackages = data
-                    .filter((p: any) => p.status === 'Active')
+                    .filter((p: any) => p.status === "Active")
                     .map((p: any) => ({
                         ...p,
-                        id: p._id || p.id
+                        id: p._id || p.id,
                     }));
                 setPackages(mappedPackages);
             }
@@ -61,21 +61,52 @@ export default function CustomerTripPackages() {
         }
     };
 
-    const handleBookNow = (packageItem: Package) => {
-        setSelectedPackage(packageItem);
+    const handleBookClick = (pkg: Package) => {
+        setSelectedPackage(pkg);
         setIsBookingModalOpen(true);
     };
 
-    const handleCustomTripCreated = (tripData: any) => {
-        // Refresh or show feedback if needed
-        console.log("Custom trip created");
+    // Helper to get image from backend, with fallback to placeholder
+    const getPackageImage = (pkg: Package) => {
+        // First priority: images array from backend
+        if (pkg.images && pkg.images.length > 0) {
+            return pkg.images[0];
+        }
+
+        // Second priority: single image field from backend
+        if (pkg.image) {
+            return pkg.image;
+        }
+
+        // Fallback to keyword-based placeholders
+        const name = pkg.name.toLowerCase();
+        const location = pkg.location.toLowerCase();
+
+        if (name.includes("safari") || location.includes("yala") || location.includes("udawalawe")) {
+            return "https://images.unsplash.com/photo-1523726491678-bf852e717f6a?q=80&w=2070&auto=format&fit=crop";
+        }
+        if (name.includes("beach") || location.includes("galle") || location.includes("mirissa")) {
+            return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=2073&auto=format&fit=crop";
+        }
+        if (name.includes("city") || name.includes("colombo") || name.includes("kandy")) {
+            return "https://images.unsplash.com/photo-1588258524675-55d656396b8a?q=80&w=2067&auto=format&fit=crop";
+        }
+        if (name.includes("mountain") || name.includes("ella") || name.includes("nuwara")) {
+            return "https://images.unsplash.com/photo-1589308078059-be1415eab4c3?q=80&w=2070&auto=format&fit=crop";
+        }
+        if (name.includes("temple") || name.includes("heritage")) {
+            return "https://images.unsplash.com/photo-1580889240912-c39c3dfbd3fc?q=80&w=2070&auto=format&fit=crop";
+        }
+
+        // Default Fallback
+        return "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80";
     };
 
     if (loading) {
         return (
             <CustomerLayout>
-                 <div className="flex items-center justify-center h-screen">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                <div className="flex h-[80vh] items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             </CustomerLayout>
         );
@@ -84,193 +115,103 @@ export default function CustomerTripPackages() {
     return (
         <CustomerLayout>
             <div className="space-y-6 p-6">
-                {/* Header Section */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Trip Packages</h1>
-                        <p className="text-gray-600 mt-2">
-                            Discover amazing destinations and experiences
+                        <h1 className="text-3xl font-bold tracking-tight">Explore Trip Packages</h1>
+                        <p className="text-muted-foreground mt-2">
+                            Discover curated experiences and adventures tailored just for you.
                         </p>
                     </div>
-                    
-                    {/* Custom Trip Button */}
                     <button
                         onClick={() => setIsCustomTripModalOpen(true)}
-                        className="flex items-center space-x-2 bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors font-medium shadow-md"
+                        className="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors"
                     >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth={1.5}
-                            stroke="currentColor"
-                            className="w-5 h-5"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M12 4.5v15m7.5-7.5h-15"
-                            />
-                        </svg>
-                        <span>Custom Trip</span>
+                        Request Custom Trip
                     </button>
                 </div>
 
-                {/* Packages Grid */}
-                {packages.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500 bg-white rounded-lg border border-gray-200">
-                        No active trip packages available at the moment.
-                    </div>
-                ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {packages.map((packageItem) => (
-                        <div
-                            key={packageItem.id}
-                            className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200 hover:shadow-lg transition-shadow"
-                        >
-                            {/* Package Image Placeholder */}
-                            <div className="h-48 bg-gray-200 relative">
-                                {packageItem.image ? (
-                                    <img
-                                        src={packageItem.image}
-                                        alt={packageItem.name}
-                                        className="w-full h-full object-cover"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
-                                        <span className="text-white font-semibold text-lg">{packageItem.name}</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Package Details */}
-                            <div className="p-6">
-                                <div className="flex justify-between items-start mb-3">
-                                    <div className="flex items-center space-x-2 flex-1 min-w-0">
-                                        <div className="bg-blue-100 p-2 rounded-lg flex-shrink-0">
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                strokeWidth={1.5}
-                                                stroke="#1954EB"
-                                                className="w-5 h-5"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    d="M10.5 6h9.75M10.5 6L6.75 18.75L12 13.5l2.25 2.25L18 9.75m-7.5-3.75H3.75"
-                                                />
-                                            </svg>
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <h3 className="text-lg font-semibold truncate text-gray-900">
-                                                {packageItem.name}
-                                            </h3>
-                                            <p className="text-gray-500 text-sm truncate">
-                                                {packageItem.location}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Description */}
-                                <p className="text-gray-700 mb-4 text-sm leading-relaxed line-clamp-3 h-16">
-                                    {packageItem.description}
-                                </p>
-
-                                {/* Features */}
-                                <div className="space-y-2 mb-4 text-gray-700 text-sm">
-                                    <div className="flex items-center space-x-2">
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            strokeWidth={1.5}
-                                            stroke="currentColor"
-                                            className="w-4 h-4 text-gray-500 flex-shrink-0"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
-                                            />
-                                        </svg>
-                                        <span className="truncate">{packageItem.duration}</span>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            strokeWidth={1.5}
-                                            stroke="currentColor"
-                                            className="w-4 h-4 text-gray-500 flex-shrink-0"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
-                                            />
-                                        </svg>
-                                        <span className="truncate">
-                                            Max {packageItem.maxParticipants} participants
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            strokeWidth={1.5}
-                                            stroke="currentColor"
-                                            className="w-4 h-4 text-gray-500 flex-shrink-0"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12"
-                                            />
-                                        </svg>
-                                        <span className="truncate">{packageItem.vehicle}</span>
-                                    </div>
-                                </div>
-
-                                {/* Price */}
-                                <div className="text-blue-600 font-bold text-xl mb-4">
-                                    ${packageItem.price} <span className="text-sm font-normal text-gray-500">/ person</span>
-                                </div>
-
-                                {/* Book Now button */}
-                                <button
-                                    onClick={() => handleBookNow(packageItem)}
-                                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                                >
-                                    Book Now
-                                </button>
-                            </div>
+                    {packages.length === 0 ? (
+                        <div className="col-span-full text-center py-12">
+                            <p className="text-muted-foreground text-lg">No active packages available at the moment.</p>
                         </div>
-                    ))}
-                </div>
-                )}
+                    ) : (
+                        packages.map((pkg) => (
+                            <div
+                                key={pkg.id}
+                                className="group flex flex-col bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300"
+                            >
+                                {/* Image Section */}
+                                <div className="relative h-48 w-full overflow-hidden">
+                                    <img
+                                        src={getPackageImage(pkg)}
+                                        alt={pkg.name}
+                                        className="h-full w-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                                        onError={(e) => {
+                                            // Fallback if image fails to load
+                                            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80";
+                                        }}
+                                    />
+                                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-bold shadow-sm">
+                                        ${pkg.price.toLocaleString()}
+                                    </div>
+                                    <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs flex items-center gap-1">
+                                        <MapPin className="h-3 w-3" />
+                                        {pkg.location}
+                                    </div>
+                                </div>
 
-                {/* Booking Modal */}
+                                {/* Content Section */}
+                                <div className="flex flex-col flex-grow p-5">
+                                    <h3 className="text-xl font-bold mb-2 group-hover:text-blue-600 transition-colors">
+                                        {pkg.name}
+                                    </h3>
+                                    <p className="text-gray-600 text-sm line-clamp-2 mb-4 flex-grow">
+                                        {pkg.description}
+                                    </p>
+
+                                    <div className="grid grid-cols-2 gap-y-2 gap-x-4 mb-4 text-sm text-gray-500">
+                                        <div className="flex items-center gap-2">
+                                            <Clock className="h-4 w-4 text-blue-500" />
+                                            <span>{pkg.duration}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Users className="h-4 w-4 text-green-500" />
+                                            <span>Max {pkg.maxParticipants}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Car className="h-4 w-4 text-orange-500" />
+                                            <span>{pkg.vehicle}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Calendar className="h-4 w-4 text-purple-500" />
+                                            <span>Available Now</span>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={() => handleBookClick(pkg)}
+                                        className="w-full mt-auto bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        Book This Trip
+                                    </button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
                 {selectedPackage && (
                     <BookingModal
-                        package={selectedPackage}
                         isOpen={isBookingModalOpen}
-                        onClose={() => {
-                            setIsBookingModalOpen(false);
-                            setSelectedPackage(null);
-                        }}
+                        onClose={() => setIsBookingModalOpen(false)}
+                        package={selectedPackage}
                     />
                 )}
 
-                {/* Custom Trip Modal */}
                 <CustomTripModal
                     isOpen={isCustomTripModalOpen}
                     onClose={() => setIsCustomTripModalOpen(false)}
-                    onTripCreated={handleCustomTripCreated}
                 />
             </div>
         </CustomerLayout>

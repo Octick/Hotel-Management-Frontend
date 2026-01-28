@@ -1,14 +1,14 @@
 /* */
 "use client";
 
-import { useState, useEffect } from "react";
-import AdminReceptionistLayout from "../../../components/layout/AdminReceptionistLayout";
-import { Search, Filter, MoreVertical, RefreshCw } from "lucide-react";
+import { MoreVertical, RefreshCw, Search } from "lucide-react";
+import { useEffect, useState } from "react";
 import GuestModel from "../../../components/guest/guestmodel";
 import GuestModelUpdate from "../../../components/guest/guestmodelupdate";
+import AdminReceptionistLayout from "../../../components/layout/AdminReceptionistLayout";
 import { useAuth } from "../../../context/AuthContext";
 // ✅ Make sure to run: npm install dayjs
-import dayjs from "dayjs"; 
+import dayjs from "dayjs";
 
 interface Reservation {
     id: string;
@@ -44,24 +44,58 @@ export default function Page() {
         if (!token) return;
         setIsLoading(true);
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/bookings`, {
-                method: "GET",
-                headers: { 
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                }
-            });
+            // Fetch both bookings and invoices
+            const [bookingsResponse, invoicesResponse] = await Promise.all([
+                fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/bookings`, {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    }
+                }),
+                fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/invoices`, {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    }
+                })
+            ]);
 
-            if (response.ok) {
-                const data = await response.json();
-                
+            if (bookingsResponse.ok) {
+                const bookingsData = await bookingsResponse.json();
+                const invoicesData = invoicesResponse.ok ? await invoicesResponse.json() : [];
+
+                // Create a map of booking ID to invoice data
+                const invoiceMap = new Map();
+                if (Array.isArray(invoicesData)) {
+                    invoicesData.forEach((inv: any) => {
+                        const bookingId = inv.bookingId?._id || inv.bookingId;
+                        if (bookingId) {
+                            const invStatus = (inv.status || '').toLowerCase();
+                            invoiceMap.set(bookingId.toString(), {
+                                total: inv.total || 0,
+                                status: inv.status,
+                                amountPaid: invStatus === 'paid' ? inv.total : 0
+                            });
+                        }
+                    });
+                }
+
                 // Map Backend Data to UI Interface
-                const mappedData: Reservation[] = data.map((b: any) => {
+                const mappedData: Reservation[] = bookingsData.map((b: any) => {
                     const checkIn = dayjs(b.checkIn);
                     const checkOut = dayjs(b.checkOut);
                     const nights = checkOut.diff(checkIn, 'day') || 1;
                     const rate = b.roomId?.rate || 0;
-                    
+
+                    // Get invoice data if exists
+                    const invoiceData = invoiceMap.get(b._id.toString());
+
+                    // Use actual invoice total if available, otherwise calculate from booking
+                    const totalAmount = invoiceData?.total || b.roomTotal || b.invoiceTotal || (rate * nights);
+                    const amountPaid = invoiceData?.amountPaid || (b.status === 'CheckedOut' ? b.invoiceTotal || 0 : 0);
+
                     return {
                         id: `#${b._id.slice(-4).toUpperCase()}`, // Short ID for display
                         mongoId: b._id, // Real ID for actions
@@ -70,11 +104,10 @@ export default function Page() {
                         checkIn: b.checkIn,
                         checkOut: b.checkOut,
                         roomType: b.roomId?.type || 'Standard',
-                        // Calculate total based on nights * rate
-                        totalAmount: rate * nights, 
-                        amountPaid: 0, 
-                        status: b.roomId?.status || 'Clean', 
-                        discount: 0
+                        totalAmount: totalAmount,
+                        amountPaid: amountPaid,
+                        status: b.roomId?.status || 'Clean',
+                        discount: b.appliedDiscount || 0
                     };
                 });
 
@@ -134,9 +167,9 @@ export default function Page() {
 
         // Basic Filter logic
         if (activeFilter === 'checkIn') {
-             filtered = filtered.filter(res => dayjs(res.checkIn).isAfter(dayjs().subtract(1, 'day')));
+            filtered = filtered.filter(res => dayjs(res.checkIn).isAfter(dayjs().subtract(1, 'day')));
         } else if (activeFilter === 'checkOut') {
-             filtered = filtered.filter(res => dayjs(res.checkOut).isBefore(dayjs().add(2, 'day')));
+            filtered = filtered.filter(res => dayjs(res.checkOut).isBefore(dayjs().add(2, 'day')));
         }
 
         if (searchQuery.trim()) {
@@ -225,7 +258,7 @@ export default function Page() {
                             </button>
                         ))}
                         <button onClick={fetchReservations} className="p-2 rounded-full hover:bg-gray-200" title="Refresh">
-                            <RefreshCw className="h-4 w-4 text-gray-600"/>
+                            <RefreshCw className="h-4 w-4 text-gray-600" />
                         </button>
                     </div>
 
@@ -294,13 +327,13 @@ export default function Page() {
             </div>
 
             <GuestModel isOpen={isGuestModalOpen} onClose={() => setIsGuestModalOpen(false)} guestData={selectedGuest} />
-            <GuestModelUpdate 
-                isOpen={isUpdateModalOpen} 
-                onClose={() => setIsUpdateModalOpen(false)} 
-                guestData={selectedGuest} 
+            <GuestModelUpdate
+                isOpen={isUpdateModalOpen}
+                onClose={() => setIsUpdateModalOpen(false)}
+                guestData={selectedGuest}
                 onUpdate={(updated) => {
                     fetchReservations(); // Refresh list after update
-                }} 
+                }}
             />
         </AdminReceptionistLayout>
     );

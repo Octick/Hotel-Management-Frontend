@@ -1,23 +1,22 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
 import {
+  AlertTriangle,
   Bed,
-  Users,
-  Utensils,
+  CheckCircle,
+  Loader2,
   Package,
   TrendingUp,
-  AlertTriangle,
-  Clock,
-  CheckCircle,
+  Users,
+  Utensils
 } from "lucide-react";
-import AdminReceptionistLayout from "../../components/layout/AdminReceptionistLayout";
-import StatsCard from "../../components/dashboard/StatsCard";
+import React, { useEffect, useState } from "react";
 import ChartCard from "../../components/dashboard/ChartCard";
-import RecentActivity from "../../components/dashboard/RecentActivity";
 import QuickActions from "../../components/dashboard/QuickActions";
+import RecentActivity from "../../components/dashboard/RecentActivity";
+import StatsCard from "../../components/dashboard/StatsCard";
+import AdminReceptionistLayout from "../../components/layout/AdminReceptionistLayout";
 import { useAuth } from "../../context/AuthContext";
-import { Loader2 } from "lucide-react";
 
 interface DashboardStats {
   totalRooms: number;
@@ -57,7 +56,7 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       if (!token) return;
-      
+
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
         const headers = { 'Authorization': `Bearer ${token}` };
@@ -71,41 +70,41 @@ const Dashboard: React.FC = () => {
         const invoicesData = await invoicesRes.json();
 
         if (dashboardRes.ok) {
-            const { metrics, roomStatus } = dashboardData;
-            
-            // Calculate Cleaning Rooms (Available Dirty + Occupied Dirty)
-            const cleaningCount = (roomStatus?.available?.dirty || 0) + (roomStatus?.occupied?.dirty || 0);
-            
-            // Calculate real revenue from paid invoices
-            let totalRevenue = 0;
-            if (Array.isArray(invoicesData)) {
-              totalRevenue = invoicesData
-                .filter((inv: any) => inv.status === 'paid')
-                .reduce((sum: number, inv: any) => sum + (inv.total || 0), 0);
-            }
-            
-            setStats({
-                totalRooms: (metrics?.totalAvailableRoom || 0) + (metrics?.totalOccupiedRoom || 0) + cleaningCount + (roomStatus?.available?.inspected || 0),
-                availableRooms: metrics?.totalAvailableRoom || 0,
-                occupiedRooms: metrics?.totalOccupiedRoom || 0,
-                cleaningRooms: cleaningCount,
-                todayCheckIns: metrics?.todayCheckIns || 0,
-                todayCheckOuts: metrics?.todayCheckOuts || 0,
-                todayOrders: 0,
-                lowStockItems: 0,
-                occupancyRate: metrics?.totalInHotel ? Math.round((metrics.totalInHotel / ((metrics?.totalAvailableRoom || 0) + (metrics?.totalOccupiedRoom || 0)) * 100)) : 0,
-                revenue: totalRevenue,
-            });
+          const { metrics, roomStatus } = dashboardData;
 
-            // Room Status Distribution
-            setRoomStatusData([
-                { name: "Available", value: metrics?.totalAvailableRoom || 0 },
-                { name: "Occupied", value: metrics?.totalOccupiedRoom || 0 },
-                { name: "Cleaning", value: cleaningCount },
-                { name: "Maintenance", value: (roomStatus?.available?.inspected || 0) },
-            ]);
+          // Calculate Cleaning Rooms (Available Dirty + Occupied Dirty)
+          const cleaningCount = (roomStatus?.available?.dirty || 0) + (roomStatus?.occupied?.dirty || 0);
 
-            setRecentActivity(dashboardData.recentActivity || []);
+          // Calculate real revenue from paid invoices
+          let totalRevenue = 0;
+          if (Array.isArray(invoicesData)) {
+            totalRevenue = invoicesData
+              .filter((inv: any) => inv.status === 'paid')
+              .reduce((sum: number, inv: any) => sum + (inv.total || 0), 0);
+          }
+
+          setStats({
+            totalRooms: (metrics?.totalAvailableRoom || 0) + (metrics?.totalOccupiedRoom || 0) + cleaningCount + (roomStatus?.available?.inspected || 0),
+            availableRooms: metrics?.totalAvailableRoom || 0,
+            occupiedRooms: metrics?.totalOccupiedRoom || 0,
+            cleaningRooms: cleaningCount,
+            todayCheckIns: metrics?.todayCheckIns || 0,
+            todayCheckOuts: metrics?.todayCheckOuts || 0,
+            todayOrders: 0,
+            lowStockItems: 0,
+            occupancyRate: metrics?.totalInHotel ? Math.round((metrics.totalInHotel / ((metrics?.totalAvailableRoom || 0) + (metrics?.totalOccupiedRoom || 0)) * 100)) : 0,
+            revenue: totalRevenue,
+          });
+
+          // Room Status Distribution
+          setRoomStatusData([
+            { name: "Available", value: metrics?.totalAvailableRoom || 0 },
+            { name: "Occupied", value: metrics?.totalOccupiedRoom || 0 },
+            { name: "Cleaning", value: cleaningCount },
+            { name: "Maintenance", value: (roomStatus?.available?.inspected || 0) },
+          ]);
+
+          setRecentActivity(dashboardData.recentActivity || []);
         }
 
       } catch (error) {
@@ -119,13 +118,13 @@ const Dashboard: React.FC = () => {
   }, [token]);
 
   if (loading) {
-      return (
-        <AdminReceptionistLayout role="receptionist">
-            <div className="flex h-screen items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            </div>
-        </AdminReceptionistLayout>
-      );
+    return (
+      <AdminReceptionistLayout role="receptionist">
+        <div className="flex h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      </AdminReceptionistLayout>
+    );
   }
 
   return (
@@ -147,6 +146,9 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Quick Actions */}
+        <QuickActions />
 
         {/* Key Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -251,9 +253,6 @@ const Dashboard: React.FC = () => {
             nameKey="name"
           />
         </div>
-
-        {/* Quick Actions */}
-        <QuickActions />
       </div>
     </AdminReceptionistLayout>
   );

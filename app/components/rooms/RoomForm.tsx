@@ -21,6 +21,7 @@ interface Room {
   amenities: string[];
   maxOccupancy: number;
   floor: number;
+  images?: string[]; // ✅ Added images field
 }
 
 interface RoomFormProps {
@@ -101,7 +102,8 @@ export default function RoomForm({
         rate: Number(newRoom.rate),
         floor: Number(newRoom.floor),
         maxOccupancy: Number(newRoom.maxOccupancy),
-        amenities: newRoom.amenities
+        amenities: newRoom.amenities,
+        images: newRoom.images || [] // ✅ Include images in payload
       };
 
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -261,6 +263,64 @@ export default function RoomForm({
             className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-black focus:ring-2 focus:ring-blue-500 outline-none ${readOnly ? 'bg-gray-100' : ''}`}
             min="1"
           />
+        </div>
+
+        {/* Room Images */}
+        <div className="md:col-span-3">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Room Images (Max 4 URLs)</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[0, 1, 2, 3].map((index) => (
+              <div key={index} className="flex gap-2 items-center">
+                <input
+                  type="url"
+                  disabled={readOnly}
+                  value={newRoom.images?.[index] || ""}
+                  onChange={(e) => {
+                    const images = [...(newRoom.images || [])];
+                    if (e.target.value) {
+                      images[index] = e.target.value;
+                    } else {
+                      images.splice(index, 1);
+                    }
+                    setNewRoom({ ...newRoom, images: images.filter(Boolean) });
+                  }}
+                  className={`flex-1 border border-gray-300 rounded-lg px-3 py-2 text-black focus:ring-2 focus:ring-blue-500 outline-none ${readOnly ? 'bg-gray-100' : ''}`}
+                  placeholder={`Image URL ${index + 1}`}
+                />
+                {/* Preview thumbnail */}
+                {newRoom.images?.[index] && (
+                  <div className="relative w-16 h-16 flex-shrink-0">
+                    <img
+                      src={newRoom.images[index]}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-full object-cover rounded border border-gray-300"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
+                        (e.target as HTMLImageElement).style.opacity = '0.3';
+                      }}
+                    />
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const images = [...(newRoom.images || [])];
+                          images.splice(index, 1);
+                          setNewRoom({ ...newRoom, images: images.filter(Boolean) });
+                        }}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition"
+                        title="Remove image"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {newRoom.images && newRoom.images.length > 0 && (
+            <p className="text-xs text-gray-500 mt-2">{newRoom.images.length} image(s) added</p>
+          )}
         </div>
 
         {/* Amenities */}

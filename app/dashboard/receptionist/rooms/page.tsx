@@ -30,6 +30,8 @@ export interface Room {
   amenities: string[];
   maxOccupancy: number;
   floor: number;
+  images?: string[]; // ✅ Added images field
+  computedStatus?: string; // ✅ Computed status from backend
 }
 
 export default function Rooms() {
@@ -73,6 +75,7 @@ export default function Rooms() {
     amenities: [],
     maxOccupancy: 1,
     floor: 0,
+    images: [], // ✅ Initialize with empty images array
   });
 
   // Floors
@@ -104,7 +107,9 @@ export default function Rooms() {
           rate: r.rate,
           amenities: r.amenities,
           maxOccupancy: r.maxOccupancy,
-          floor: r.floor
+          floor: r.floor,
+          images: r.images || [], // ✅ Include images
+          computedStatus: r.computedStatus
         }));
 
         setRooms(mappedRooms);
@@ -160,6 +165,7 @@ export default function Rooms() {
       amenities: [],
       maxOccupancy: 1,
       floor: 0,
+      images: [], // ✅ Initialize empty images array
     });
     setEditingRoom(null);
     setIsViewOnly(false);
@@ -218,6 +224,7 @@ export default function Rooms() {
       amenities: room.amenities,
       maxOccupancy: room.maxOccupancy,
       floor: room.floor,
+      images: room.images ? [...room.images] : [], // ✅ Copy images when duplicating
     });
     setIsViewOnly(false);
     setShowAddForm(true);
@@ -354,8 +361,8 @@ export default function Rooms() {
               <button
                 onClick={() => setViewMode("grid")}
                 className={`p-2 rounded-lg transition-colors ${viewMode === "grid"
-                    ? "bg-white shadow-soft text-blue-600"
-                    : "text-gray-600 hover:text-gray-900"
+                  ? "bg-white shadow-soft text-blue-600"
+                  : "text-gray-600 hover:text-gray-900"
                   }`}
               >
                 <Grid className="h-4 w-4" />
@@ -363,8 +370,8 @@ export default function Rooms() {
               <button
                 onClick={() => setViewMode("list")}
                 className={`p-2 rounded-lg transition-colors ${viewMode === "list"
-                    ? "bg-white shadow-soft text-blue-600"
-                    : "text-gray-600 hover:text-gray-900"
+                  ? "bg-white shadow-soft text-blue-600"
+                  : "text-gray-600 hover:text-gray-900"
                   }`}
               >
                 <List className="h-4 w-4" />

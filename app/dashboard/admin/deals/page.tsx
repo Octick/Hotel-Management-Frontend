@@ -1,11 +1,11 @@
 /* */
 "use client";
 
-import { useState, useEffect } from "react";
-import AdminReceptionistLayout from "../../../components/layout/AdminReceptionistLayout";
+import { Calendar, Eye, Pencil, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
 import DealModel from "../../../components/deal/dealmodel";
 import DealUpdateModel from "../../../components/deal/dealupdatemodel";
-import { Plus, MoreVertical } from "lucide-react";
+import AdminReceptionistLayout from "../../../components/layout/AdminReceptionistLayout";
 import { useAuth } from "../../../context/AuthContext"; // ✅ Added Auth Hook
 
 interface Deal {
@@ -13,9 +13,13 @@ interface Deal {
   referenceNumber: string;
   dealName: string;
   reservationsLeft: number;
+  startDate?: string;
   endDate: string;
   roomType: string;
   status: 'Ongoing' | 'Full' | 'Inactive' | 'New' | 'Finished';
+  image?: string; // ✅ Added image field
+  description?: string;
+  discount?: number;
 }
 
 interface NewDealData {
@@ -49,7 +53,6 @@ export default function Page() {
   const [finishedDeals, setFinishedDeals] = useState<Deal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
@@ -61,25 +64,25 @@ export default function Page() {
     setError(null);
 
     try {
-       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/deals`, {
-         method: "GET",
-         headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}` // ✅ Use Token
-         },
-       });
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/deals`, {
+        method: "GET",
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` // ✅ Use Token
+        },
+      });
 
       if (response.ok) {
         const allDeals = await response.json();
-        
+
         // Filter deals based on status
-        const ongoing = allDeals.filter((deal: Deal) => 
+        const ongoing = allDeals.filter((deal: Deal) =>
           ['Ongoing', 'Full', 'Inactive', 'New'].includes(deal.status)
         );
-        const finished = allDeals.filter((deal: Deal) => 
+        const finished = allDeals.filter((deal: Deal) =>
           deal.status === 'Finished'
         );
-        
+
         setOngoingDeals(ongoing);
         setFinishedDeals(finished);
       } else {
@@ -116,31 +119,30 @@ export default function Page() {
 
   const handleDeleteDeal = async (deal: Deal) => {
     if (!window.confirm(`Are you sure you want to delete deal "${deal.dealName}"?`)) {
-      setOpenMenu(null);
       return;
     }
-    
-    try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/deals/${deal.id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
 
-        if (res.ok) {
-            alert(`Deal "${deal.dealName}" has been deleted.`);
-            // Update local state
-            if (activeTab === 'ongoing') {
-                setOngoingDeals(prev => prev.filter(d => d.id !== deal.id));
-            } else {
-                setFinishedDeals(prev => prev.filter(d => d.id !== deal.id));
-            }
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/deals/${deal.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        alert(`Deal "${deal.dealName}" has been deleted.`);
+        // Update local state
+        if (activeTab === 'ongoing') {
+          setOngoingDeals(prev => prev.filter(d => d.id !== deal.id));
         } else {
-            throw new Error();
+          setFinishedDeals(prev => prev.filter(d => d.id !== deal.id));
         }
+      } else {
+        throw new Error();
+      }
     } catch (err) {
-        alert("Failed to delete deal");
+      alert("Failed to delete deal");
     } finally {
-        setOpenMenu(null);
+      // no-op
     }
   };
 
@@ -163,7 +165,7 @@ export default function Page() {
         {updateSuccess && (
           <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg">Deal updated successfully!</div>
         )}
-        
+
         {updateError && (
           <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">{updateError}</div>
         )}
@@ -179,7 +181,7 @@ export default function Page() {
           </button>
         </div>
 
-        {/* List */}
+        {/* Cards */}
         {isLoading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -189,49 +191,84 @@ export default function Page() {
             <p className="text-red-700">{error}</p>
             <button onClick={fetchDeals} className="mt-2 px-4 py-2 bg-red-100 text-red-700 rounded text-sm">Retry</button>
           </div>
+        ) : currentDeals.length === 0 ? (
+          <div className="py-12 text-center text-gray-500 bg-white rounded-lg border border-gray-200">
+            No {activeTab} deals found
+          </div>
         ) : (
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-visible">
-              <div className="grid grid-cols-7 bg-gray-50 px-6 py-4 border-b border-gray-200">
-                <div className="text-sm font-medium text-gray-700">Reference number</div>
-                <div className="text-sm font-medium text-gray-700">Deal name</div>
-                <div className="text-sm font-medium text-gray-700">Reservations left</div>
-                <div className="text-sm font-medium text-gray-700">End date</div>
-                <div className="text-sm font-medium text-gray-700">Room type</div>
-                <div className="text-sm font-medium text-gray-700">Status</div>
-                <div className="text-sm font-medium text-gray-700">Actions</div>
-              </div>
-
-              {currentDeals.length === 0 ? (
-                <div className="py-8 text-center text-gray-500">No {activeTab} deals found</div>
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {currentDeals.map((deal, index) => (
-                    <div key={deal.id} className="grid grid-cols-7 px-6 py-4 hover:bg-gray-50 transition-colors items-center">
-                      <div className="text-sm font-medium text-gray-900">{deal.referenceNumber}</div>
-                      <div className="text-sm text-gray-700">{deal.dealName}</div>
-                      <div className="text-sm font-medium text-gray-900">{deal.reservationsLeft}</div>
-                      <div className="text-sm text-gray-700">{deal.endDate}</div>
-                      <div className="text-sm text-gray-700">{deal.roomType}</div>
-                      <div>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(deal.status)}`}>{deal.status}</span>
-                      </div>
-                      <div className="relative">
-                        <MoreVertical 
-                          onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === index ? null : index); }} 
-                          className="h-5 w-5 text-gray-500 cursor-pointer hover:text-gray-700" 
-                        />
-                        {openMenu === index && (
-                          <div className="absolute right-0 top-8 w-40 bg-white shadow-xl rounded-md border border-gray-200 z-50">
-                            <button className="text-black w-full text-left px-4 py-2 text-sm hover:bg-gray-100" onClick={() => { setSelectedDeal(deal); setShowUpdateDealModel(true); setOpenMenu(null); }}>Update</button>
-                            <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100" onClick={() => handleDeleteDeal(deal)}>Delete</button>
-                          </div>
-                        )}
-                      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {currentDeals.map((deal) => (
+              <div key={deal.id} className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
+                {/* Image */}
+                <div className="relative h-40 w-full bg-gray-100">
+                  {deal.image ? (
+                    <img src={deal.image} alt={deal.dealName} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+                      <span className="text-blue-700 font-semibold text-sm">{deal.dealName}</span>
                     </div>
-                  ))}
+                  )}
+                  <div className="absolute top-3 left-3">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(deal.status)}`}>
+                      {deal.status}
+                    </span>
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Content */}
+                <div className="p-4 flex flex-col flex-grow">
+                  <div className="mb-2">
+                    <h3 className="text-lg font-semibold text-gray-900">{deal.dealName}</h3>
+                    <p className="text-xs text-gray-500 mt-1">Ref: {deal.referenceNumber}</p>
+                  </div>
+
+                  <div className="text-sm text-gray-700 space-y-1">
+                    <p><span className="font-medium">Room Type:</span> {deal.roomType}</p>
+                    <p><span className="font-medium">Reservations Left:</span> {deal.reservationsLeft}</p>
+                    {typeof deal.discount === 'number' && (
+                      <p><span className="font-medium">Discount:</span> {deal.discount}%</p>
+                    )}
+                  </div>
+
+                  {deal.description && (
+                    <p className="text-xs text-gray-500 mt-3 line-clamp-3">{deal.description}</p>
+                  )}
+
+                  <div className="mt-4 pt-3 border-t border-gray-100 text-xs text-gray-600 flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-400" />
+                    <span>
+                      {deal.startDate ? new Date(deal.startDate).toLocaleDateString() : '—'}
+                      {' '}to{' '}
+                      {deal.endDate ? new Date(deal.endDate).toLocaleDateString() : '—'}
+                    </span>
+                  </div>
+
+                  <div className="mt-auto pt-4 flex items-center gap-2">
+                    <button
+                      onClick={() => { setSelectedDeal(deal); setShowUpdateDealModel(true); }}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+                    >
+                      <Eye className="h-4 w-4" />
+                      View
+                    </button>
+                    <button
+                      onClick={() => { setSelectedDeal(deal); setShowUpdateDealModel(true); }}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDeal(deal)}
+                      className="px-3 py-2 text-sm font-medium rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         <DealModel isOpen={showDealModel} onClose={() => setShowDealModel(false)} onSave={handleSaveDeal} />

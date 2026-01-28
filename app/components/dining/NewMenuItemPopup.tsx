@@ -1,18 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 
 interface MenuItem {
-    id: string;
-    name: string;
-    category: string;
-    description: string;
-    ingredients: string[];
-    price: number;
-    discount?: number;
-    available: boolean;
-    image?: string;
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  ingredients: string[];
+  price: number;
+  discount?: number;
+  available: boolean;
+  image?: string;
 }
 
 interface NewMenuItemPopupProps {
@@ -23,12 +23,12 @@ interface NewMenuItemPopupProps {
   onCreateMenuItem?: (item: any) => void;
 }
 
-export default function NewMenuItemPopup({ 
-  isOpen, 
-  onClose, 
+export default function NewMenuItemPopup({
+  isOpen,
+  onClose,
   editingMenuItem = null,
   onUpdateMenuItem,
-  onCreateMenuItem 
+  onCreateMenuItem
 }: NewMenuItemPopupProps) {
   const [formData, setFormData] = useState({
     itemName: "",
@@ -38,6 +38,7 @@ export default function NewMenuItemPopup({
     price: "",
     discount: "",
     available: true,
+    image: "", // ✅ Changed to URL string
   });
 
   const [imagePreview, setImagePreview] = useState<string | undefined>(undefined);
@@ -55,6 +56,7 @@ export default function NewMenuItemPopup({
         price: editingMenuItem.price.toString(),
         discount: editingMenuItem.discount?.toString() || "",
         available: editingMenuItem.available,
+        image: editingMenuItem.image || "", // ✅ Load image URL
       });
       setImagePreview(editingMenuItem.image);
     } else {
@@ -67,6 +69,7 @@ export default function NewMenuItemPopup({
         price: "",
         discount: "",
         available: true,
+        image: "", // ✅ Initialize empty
       });
       setImagePreview(undefined);
     }
@@ -81,14 +84,9 @@ export default function NewMenuItemPopup({
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+    const value = e.target.value;
+    setFormData({ ...formData, image: value });
+    setImagePreview(value); // ✅ Preview URL directly
   };
 
   const handleCreateItem = async () => {
@@ -118,7 +116,7 @@ export default function NewMenuItemPopup({
 
       const result = await response.json();
       if (onCreateMenuItem) onCreateMenuItem(result);
-      
+
     } catch (error) {
       console.error("Creation failed:", error);
       alert("Failed to create item. If uploading an image, ensure it is under 10MB.");
@@ -156,7 +154,7 @@ export default function NewMenuItemPopup({
       const result = await response.json();
       const formattedResult = { ...result, id: result._id };
       if (onUpdateMenuItem) onUpdateMenuItem(formattedResult);
-      
+
     } catch (error) {
       console.error("Update failed:", error);
       alert("Failed to update item.");
@@ -206,46 +204,46 @@ export default function NewMenuItemPopup({
               <input type="number" name="price" value={formData.price} onChange={handleChange} className="w-full border rounded px-3 py-2" step="0.01" />
             </div>
             <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
-                <textarea name="description" value={formData.description} onChange={handleChange} rows={3} className="w-full border rounded px-3 py-2" />
+              <label className="block text-sm font-medium mb-1">Description</label>
+              <textarea name="description" value={formData.description} onChange={handleChange} rows={3} className="w-full border rounded px-3 py-2" />
             </div>
             <div>
-                <label className="block text-sm font-medium mb-1">Ingredients</label>
-                <input type="text" name="ingredients" value={formData.ingredients} onChange={handleChange} className="w-full border rounded px-3 py-2" placeholder="Comma separated" />
+              <label className="block text-sm font-medium mb-1">Ingredients</label>
+              <input type="text" name="ingredients" value={formData.ingredients} onChange={handleChange} className="w-full border rounded px-3 py-2" placeholder="Comma separated" />
             </div>
-            
+
             <div className="flex items-center space-x-2 mt-4">
-                <input type="checkbox" name="available" checked={formData.available} onChange={handleChange} className="rounded" />
-                <label className="text-sm">Available for order</label>
+              <input type="checkbox" name="available" checked={formData.available} onChange={handleChange} className="rounded" />
+              <label className="text-sm">Available for order</label>
             </div>
 
             <div className="mt-4">
-                <label className="block text-sm font-medium mb-1">Image</label>
-                <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full" />
+              <label className="block text-sm font-medium mb-1">Image URL</label>
+              <input type="url" name="image" value={formData.image} onChange={handleImageUpload} className="w-full border rounded px-3 py-2" placeholder="https://example.com/image.jpg" />
             </div>
           </div>
 
           {/* Live Preview */}
           <div className="border border-dashed border-gray-300 rounded-lg p-6 bg-gray-50 flex items-center justify-center">
-             <div className="bg-white shadow rounded-lg p-4 w-full max-w-sm">
-                {imagePreview ? (
-                    <img src={imagePreview} className="w-full h-48 object-cover rounded mb-4" alt="Preview" />
-                ) : (
-                    <div className="w-full h-48 bg-gray-200 rounded mb-4 flex items-center justify-center text-gray-400">No Image</div>
-                )}
-                <h3 className="font-bold text-lg">{formData.itemName || "Item Name"}</h3>
-                <p className="text-gray-500 text-sm capitalize">{formData.category || "Category"}</p>
-                <div className="font-bold text-xl mt-2">${formData.price || "0.00"}</div>
-                <p className="text-gray-600 text-sm mt-2">{formData.description || "Description..."}</p>
-             </div>
+            <div className="bg-white shadow rounded-lg p-4 w-full max-w-sm">
+              {imagePreview ? (
+                <img src={imagePreview} className="w-full h-48 object-cover rounded mb-4" alt="Preview" />
+              ) : (
+                <div className="w-full h-48 bg-gray-200 rounded mb-4 flex items-center justify-center text-gray-400">No Image</div>
+              )}
+              <h3 className="font-bold text-lg">{formData.itemName || "Item Name"}</h3>
+              <p className="text-gray-500 text-sm capitalize">{formData.category || "Category"}</p>
+              <div className="font-bold text-xl mt-2">${formData.price || "0.00"}</div>
+              <p className="text-gray-600 text-sm mt-2">{formData.description || "Description..."}</p>
+            </div>
           </div>
         </div>
 
         <div className="flex justify-end space-x-3 mt-8 pt-6 border-t">
-            <button onClick={onClose} disabled={isSubmitting} className="px-4 py-2 border rounded hover:bg-gray-100">Cancel</button>
-            <button onClick={() => handleSubmit()} disabled={isSubmitting} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
-                {isSubmitting ? "Saving..." : "Save Item"}
-            </button>
+          <button onClick={onClose} disabled={isSubmitting} className="px-4 py-2 border rounded hover:bg-gray-100">Cancel</button>
+          <button onClick={() => handleSubmit()} disabled={isSubmitting} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+            {isSubmitting ? "Saving..." : "Save Item"}
+          </button>
         </div>
       </div>
     </div>

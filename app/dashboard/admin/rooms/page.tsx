@@ -31,6 +31,8 @@ export interface Room {
   amenities: string[];
   maxOccupancy: number;
   floor: number;
+  images?: string[]; // ✅ Added images field
+  computedStatus?: string; // ✅ Computed status from backend
 }
 
 export default function Rooms() {
@@ -112,7 +114,9 @@ export default function Rooms() {
           rate: r.rate,
           amenities: r.amenities,
           maxOccupancy: r.maxOccupancy,
-          floor: r.floor
+          floor: r.floor,
+          images: r.images || [], // ✅ Include images
+          computedStatus: r.computedStatus
         }));
 
         setRooms(mappedRooms);
@@ -532,6 +536,7 @@ export default function Rooms() {
                 amenities: room.amenities,
                 maxOccupancy: room.maxOccupancy,
                 floor: room.floor,
+                images: room.images ? [...room.images] : [],
               });
               setIsViewOnly(false);
               setShowAddForm(true);

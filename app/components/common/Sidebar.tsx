@@ -1,29 +1,30 @@
 /* */
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useAuth } from "@/app/context/AuthContext";
+import { auth } from "@/app/lib/firebase";
+import { signOut } from "firebase/auth";
+import {
+  BarChart3,
+  Bed,
+  Calendar,
+  DollarSign,
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare,
+  Navigation,
+  Package,
+  Settings,
+  Tags,
+  UserCheck,
+  User as UserIcon,
+  Utensils,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { signOut } from "firebase/auth";
-import { auth } from "@/app/lib/firebase";
-import { useAuth } from "@/app/context/AuthContext"; 
-import {
-  Bed,
-  LogOut,
-  LayoutDashboard,
-  Calendar,
-  Utensils,
-  Navigation,
-  FileText,
-  Package,
-  BarChart3,
-  Settings,
-  X,
-  User as UserIcon,
-  Tags,
-  DollarSign,
-  UserCheck,
-} from "lucide-react";
+import { useEffect, useState } from "react";
 
 type Role = "admin" | "receptionist";
 
@@ -41,7 +42,7 @@ export default function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { profile, user, token } = useAuth();
-  
+
   // State for dynamic badges
   const [counts, setCounts] = useState({
     bookings: 0,
@@ -53,7 +54,7 @@ export default function Sidebar({
   useEffect(() => {
     const fetchCounts = async () => {
       if (!token || role !== 'admin') return; // Only fetch for admins generally or extend logic
-      
+
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/reports/sidebar-counts`, {
           headers: {
@@ -95,6 +96,7 @@ export default function Sidebar({
       { name: "Trip Packages", href: "/dashboard/admin/trip-packages", icon: Navigation, badge: null },
       { name: "Inventory", href: "/dashboard/admin/inventory", icon: Package, badge: counts.inventory > 0 ? String(counts.inventory) : null },
       { name: "Billing", href: "/dashboard/admin/billing", icon: FileText, badge: null },
+      { name: "Feedback", href: "/dashboard/admin/feedback", icon: MessageSquare, badge: null },
       { name: "Reports", href: "/dashboard/admin/reports", icon: BarChart3, badge: null },
       { name: "Settings", href: "/dashboard/admin/settings", icon: Settings, badge: null },
       { name: "Guest", href: "/dashboard/admin/guest", icon: UserIcon, badge: null },
@@ -105,11 +107,13 @@ export default function Sidebar({
     ],
     receptionist: [
       { name: "Dashboard", href: "/dashboard/receptionist", icon: LayoutDashboard, badge: null },
+      { name: "Front desk", href: "/dashboard/receptionist/frontdesk", icon: UserCheck, badge: null },
       { name: "Rooms", href: "/dashboard/receptionist/rooms", icon: Bed, badge: null },
       { name: "Bookings", href: "/dashboard/receptionist/bookings", icon: Calendar, badge: null },
       { name: "Dining", href: "/dashboard/receptionist/dining", icon: Utensils, badge: null },
       { name: "Trip Packages", href: "/dashboard/receptionist/trip-packages", icon: Navigation, badge: null },
       { name: "Billing", href: "/dashboard/receptionist/billing", icon: FileText, badge: null },
+      { name: "Feedback", href: "/dashboard/receptionist/feedback", icon: MessageSquare, badge: null },
     ],
   };
 
@@ -125,9 +129,8 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-[1000] w-64 bg-white text-gray-900 shadow-lg border-r border-gray-200 flex flex-col transform transition-transform duration-300 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } lg:translate-x-0 lg:static lg:inset-auto`}
+        className={`fixed inset-y-0 left-0 z-[1000] w-64 bg-white text-gray-900 shadow-lg border-r border-gray-200 flex flex-col transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          } lg:translate-x-0 lg:static lg:inset-auto`}
       >
         <div className="flex items-center justify-between p-4 lg:hidden border-b border-gray-200">
           <h2 className="text-lg font-bold">Menu</h2>
@@ -157,25 +160,22 @@ export default function Sidebar({
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className={`flex items-center px-4 py-3 rounded-lg font-medium transition-colors ${
-                      isActive
-                        ? "bg-blue-100 text-blue-600"
-                        : "text-gray-700 hover:bg-gray-50 hover:text-blue-600"
-                    }`}
+                    className={`flex items-center px-4 py-3 rounded-lg font-medium transition-colors ${isActive
+                      ? "bg-blue-100 text-blue-600"
+                      : "text-gray-700 hover:bg-gray-50 hover:text-blue-600"
+                      }`}
                   >
                     <Icon
-                      className={`h-5 w-5 mr-3 ${
-                        isActive ? "text-blue-600" : "text-gray-500"
-                      }`}
+                      className={`h-5 w-5 mr-3 ${isActive ? "text-blue-600" : "text-gray-500"
+                        }`}
                     />
                     <span className="truncate">{link.name}</span>
                     {link.badge && (
                       <span
-                        className={`ml-auto text-xs font-semibold px-2 py-1 rounded-full ${
-                          isActive
-                            ? "bg-blue-200 text-blue-700"
-                            : "bg-blue-100 text-blue-700"
-                        }`}
+                        className={`ml-auto text-xs font-semibold px-2 py-1 rounded-full ${isActive
+                          ? "bg-blue-200 text-blue-700"
+                          : "bg-blue-100 text-blue-700"
+                          }`}
                       >
                         {link.badge}
                       </span>
