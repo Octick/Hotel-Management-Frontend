@@ -1,6 +1,6 @@
 /* */
+import { Check, X } from "lucide-react";
 import React, { useEffect, useState } from "react";
-import { X, ChevronDown, Check } from "lucide-react";
 import { useAuth } from "../../context/AuthContext"; // ✅ Added
 
 interface DealModelProps {
@@ -11,7 +11,7 @@ interface DealModelProps {
 
 export default function DealModel({ isOpen, onClose, onSave }: DealModelProps) {
   const { token } = useAuth();
-  
+
   const [formData, setFormData] = useState({
     dealName: "",
     referenceNumber: "",
@@ -20,6 +20,7 @@ export default function DealModel({ isOpen, onClose, onSave }: DealModelProps) {
     discount: "",
     startDate: "",
     endDate: "",
+    image: "", // ✅ Added image field
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,13 +107,14 @@ export default function DealModel({ isOpen, onClose, onSave }: DealModelProps) {
         roomTypes: selectedRoomTypes,
         price: 0, // Price is calculated from monthly rate + discount
         status: "New",
+        image: formData.image, // ✅ Include image
       };
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/deals`, {
         method: "POST",
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(requestData),
       });
@@ -121,9 +123,9 @@ export default function DealModel({ isOpen, onClose, onSave }: DealModelProps) {
         onSave(requestData);
         onClose();
         // Reset form
-        setFormData({ 
-          dealName: "", referenceNumber: "", description: "", 
-          roomIds: [], discount: "", startDate: "", endDate: "" 
+        setFormData({
+          dealName: "", referenceNumber: "", description: "",
+          roomIds: [], discount: "", startDate: "", endDate: ""
         });
         setCurrentStep(1);
       } else {
@@ -144,7 +146,7 @@ export default function DealModel({ isOpen, onClose, onSave }: DealModelProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
-        
+
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-white sticky top-0 z-10 rounded-t-lg">
           <h2 className="text-xl font-semibold text-gray-800">Add New Deal</h2>
@@ -155,128 +157,141 @@ export default function DealModel({ isOpen, onClose, onSave }: DealModelProps) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {/* Basic Info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Deal Name <span className="text-red-500">*</span></label>
-                <input name="dealName" value={formData.dealName} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="e.g. Summer Special" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reference No <span className="text-red-500">*</span></label>
-                <input name="referenceNumber" value={formData.referenceNumber} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="e.g. SUM-2026" />
-              </div>
+          {/* Basic Info */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Deal Name <span className="text-red-500">*</span></label>
+              <input name="dealName" value={formData.dealName} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="e.g. Summer Special" />
             </div>
-
-            {/* Step 1: Select Rooms */}
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">Step 1: Select Room(s) <span className="text-red-500">*</span></h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-64 overflow-y-auto p-1">
-                {availableRooms.length === 0 ? (
-                  <div className="col-span-full p-4 bg-gray-50 border border-dashed rounded-lg text-center text-sm text-gray-500">No available rooms</div>
-                ) : (
-                  availableRooms.map((room) => {
-                    const selected = formData.roomIds.includes(room._id);
-                    return (
-                      <button
-                        key={room._id}
-                        type="button"
-                        onClick={() => handleRoomToggle(room._id)}
-                        className={`p-3 border rounded-lg text-left transition-all relative ${selected ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'hover:border-blue-300 bg-white'}`}
-                      >
-                        {selected && <Check className="h-4 w-4 text-blue-600 absolute top-2 right-2" />}
-                        <div className="font-bold text-gray-900 text-sm">Room {room.roomNumber}</div>
-                        <div className="text-gray-500 text-xs">{room.type}</div>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-              {formData.roomIds.length > 0 && (
-                <p className="text-sm text-blue-600 mt-2">{formData.roomIds.length} room(s) selected</p>
-              )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reference No <span className="text-red-500">*</span></label>
+              <input name="referenceNumber" value={formData.referenceNumber} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="e.g. SUM-2026" />
             </div>
+          </div>
 
-            {/* Step 2: Time Period */}
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">Step 2: Set Time Period <span className="text-red-500">*</span></h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                  <input type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                  <input type="date" name="endDate" value={formData.endDate} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* Step 3: Monthly Rate & Discount */}
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">Step 3: Apply Discount to Monthly Rate <span className="text-red-500">*</span></h3>
-              {monthlyRatePreview !== null && formData.roomIds.length === 1 ? (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-700">Current Monthly Rate:</span>
-                    <span className="text-lg font-bold text-blue-700">${monthlyRatePreview.toFixed(2)}/night</span>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Month: {formData.startDate ? new Date(formData.startDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Not set'}
-                  </p>
-                </div>
-              ) : formData.roomIds.length > 1 ? (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-sm text-yellow-700">
-                  Multiple rooms selected. Discount will apply to each room's monthly rate.
-                </div>
+          {/* Step 1: Select Rooms */}
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold text-gray-800 mb-3">Step 1: Select Room(s) <span className="text-red-500">*</span></h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-64 overflow-y-auto p-1">
+              {availableRooms.length === 0 ? (
+                <div className="col-span-full p-4 bg-gray-50 border border-dashed rounded-lg text-center text-sm text-gray-500">No available rooms</div>
               ) : (
-                <div className="bg-gray-50 border border-dashed rounded-lg p-3 mb-4 text-sm text-gray-500">
-                  Select a room and start date to see the monthly rate
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Discount Percentage (%)</label>
-                <input 
-                  name="discount" 
-                  type="number" 
-                  min="0" 
-                  max="100" 
-                  value={formData.discount} 
-                  onChange={handleInputChange} 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
-                  placeholder="e.g. 15" 
-                />
-              </div>
-              {monthlyRatePreview !== null && formData.discount && (
-                <div className="mt-3 flex items-center gap-2 text-sm">
-                  <span className="text-gray-600">Discounted Rate:</span>
-                  <span className="font-bold text-emerald-600">
-                    ${(monthlyRatePreview * (1 - parseFloat(formData.discount) / 100)).toFixed(2)}/night
-                  </span>
-                  <span className="text-xs text-gray-500">({formData.discount}% off)</span>
-                </div>
+                availableRooms.map((room) => {
+                  const selected = formData.roomIds.includes(room._id);
+                  return (
+                    <button
+                      key={room._id}
+                      type="button"
+                      onClick={() => handleRoomToggle(room._id)}
+                      className={`p-3 border rounded-lg text-left transition-all relative ${selected ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'hover:border-blue-300 bg-white'}`}
+                    >
+                      {selected && <Check className="h-4 w-4 text-blue-600 absolute top-2 right-2" />}
+                      <div className="font-bold text-gray-900 text-sm">Room {room.roomNumber}</div>
+                      <div className="text-gray-500 text-xs">{room.type}</div>
+                    </button>
+                  );
+                })
               )}
             </div>
+            {formData.roomIds.length > 0 && (
+              <p className="text-sm text-blue-600 mt-2">{formData.roomIds.length} room(s) selected</p>
+            )}
+          </div>
 
-            {/* Step 4: Description */}
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">Step 4: Description (Optional)</h3>
-              <textarea 
-                name="description" 
-                value={formData.description} 
-                onChange={handleInputChange} 
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
-                rows={3} 
-                placeholder="Add details about this deal..." 
+          {/* Step 2: Time Period */}
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold text-gray-800 mb-3">Step 2: Set Time Period <span className="text-red-500">*</span></h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <input type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <input type="date" name="endDate" value={formData.endDate} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              </div>
+            </div>
+          </div>
+
+          {/* Step 3: Monthly Rate & Discount */}
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold text-gray-800 mb-3">Step 3: Apply Discount to Monthly Rate <span className="text-red-500">*</span></h3>
+            {monthlyRatePreview !== null && formData.roomIds.length === 1 ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-700">Current Monthly Rate:</span>
+                  <span className="text-lg font-bold text-blue-700">${monthlyRatePreview.toFixed(2)}/night</span>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Month: {formData.startDate ? new Date(formData.startDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Not set'}
+                </p>
+              </div>
+            ) : formData.roomIds.length > 1 ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-sm text-yellow-700">
+                Multiple rooms selected. Discount will apply to each room's monthly rate.
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-dashed rounded-lg p-3 mb-4 text-sm text-gray-500">
+                Select a room and start date to see the monthly rate
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Discount Percentage (%)</label>
+              <input
+                name="discount"
+                type="number"
+                min="0"
+                max="100"
+                value={formData.discount}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="e.g. 15"
               />
             </div>
+            {monthlyRatePreview !== null && formData.discount && (
+              <div className="mt-3 flex items-center gap-2 text-sm">
+                <span className="text-gray-600">Discounted Rate:</span>
+                <span className="font-bold text-emerald-600">
+                  ${(monthlyRatePreview * (1 - parseFloat(formData.discount) / 100)).toFixed(2)}/night
+                </span>
+                <span className="text-xs text-gray-500">({formData.discount}% off)</span>
+              </div>
+            )}
+          </div>
 
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button type="button" onClick={onClose} className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50">
-                    {isSubmitting ? "Creating..." : "Create Deal"}
-                </button>
-            </div>
+          {/* Step 4: Description */}
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold text-gray-800 mb-3">Step 4: Description (Optional)</h3>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              rows={3}
+              placeholder="Add details about this deal..."
+            />
+          </div>
+
+          {/* Step 5: Deal Image */}
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold text-gray-800 mb-3">Step 5: Deal Image (Optional)</h3>
+            <input
+              type="url"
+              name="image"
+              value={formData.image}
+              onChange={handleInputChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="Image URL for the deal"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button type="button" onClick={onClose} className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium">Cancel</button>
+            <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50">
+              {isSubmitting ? "Creating..." : "Create Deal"}
+            </button>
+          </div>
         </form>
       </div>
     </div>

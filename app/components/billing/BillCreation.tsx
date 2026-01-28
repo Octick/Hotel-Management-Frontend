@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
-import { Plus, Trash2, X, Loader2 } from "lucide-react";
-import { Bill, BillItem } from "./BillCard";
 import { useAuth } from "@/app/context/AuthContext";
+import { Loader2, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { Bill, BillItem } from "./BillCard";
 
 interface BillCreationProps {
   onClose: () => void;
@@ -63,7 +63,7 @@ export default function BillCreation({
       setBookingId(billToView.bookingId);
       setStatus(billToView.status);
       setBillItems(billToView.items);
-      
+
       // Load discount from bill items if it exists
       const discountItem = billToView.items.find((item: any) => item.source === 'discount');
       if (discountItem) {
@@ -128,16 +128,8 @@ export default function BillCreation({
     () => billItems.reduce((sum, item) => sum + item.amount, 0),
     [billItems]
   );
-  
-  // Calculate pre-discount subtotal and tax
-  const preDiscountSubtotal = useMemo(
-    () => billItems
-      .filter((item) => (item as any).source !== 'discount')
-      .reduce((sum, item) => sum + item.amount, 0),
-    [billItems]
-  );
-  const tax = preDiscountSubtotal * 0.1;
-  const total = subtotal + tax;
+
+  const total = subtotal;
 
   const handleItemChange = (field: keyof BillItem, value: any) => {
     setNewItem((prev) => ({ ...prev, [field]: value }));
@@ -184,11 +176,11 @@ export default function BillCreation({
   const handleRemoveItem = (index: number) => {
     const item = billItems[index];
     const itemAny = item as any;
-    
+
     // Allow removal of custom items and discount items
     if (itemAny.source === 'custom' || itemAny.source === 'discount') {
       setBillItems((prev) => prev.filter((_, i) => i !== index));
-      
+
       // If removing discount item, reset discount fields
       if (itemAny.source === 'discount') {
         setDiscountAmount(0);
@@ -199,35 +191,35 @@ export default function BillCreation({
       }
       return;
     }
-    
+
     // Prevent removal of auto-calculated items
     if (itemAny.source === 'booking') {
       toast.error('Cannot remove room charge from bill');
       return;
     }
-    
+
     if (itemAny.source === 'trip' && itemAny.tripStatus && ['Confirmed', 'Approved', 'Completed'].includes(itemAny.tripStatus)) {
       toast.error('Cannot remove confirmed or completed trip from bill');
       return;
     }
-    
+
     if (itemAny.source === 'order' && itemAny.orderStatus && ['Ready', 'Served'].includes(itemAny.orderStatus)) {
       toast.error('Cannot remove ready or served order from bill');
       return;
     }
-    
+
     // For other trips/orders that can be removed, still prevent
     if (itemAny.source === 'trip' || itemAny.source === 'order') {
       toast.error('Cannot remove auto-calculated items. Only manually added items can be removed.');
       return;
     }
-    
+
     // Only custom items (manually added) can be removed
     if (itemAny.source !== 'custom') {
       toast.error('Only manually added items can be removed');
       return;
     }
-    
+
     setBillItems((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -245,11 +237,11 @@ export default function BillCreation({
     setIsSubmitting(true);
     try {
       const token = await user.getIdToken();
-      
-      const endpoint = isEditMode 
+
+      const endpoint = isEditMode
         ? `${API_URL}/api/invoices/${billToView?.id}`
         : `${API_URL}/api/invoices`;
-      
+
       const method = isEditMode ? 'PUT' : 'POST';
 
       // Filter custom items only (exclude discount items from custom array)
@@ -291,7 +283,7 @@ export default function BillCreation({
       }
 
       const result = await res.json();
-      
+
       const newBill: Bill = {
         id: result._id,
         bookingId,
@@ -305,7 +297,7 @@ export default function BillCreation({
           source: item.source
         })),
         subtotal: result.subtotal,
-        tax: result.tax,
+        tax: 0,
         total: result.total,
         status: result.status as Bill["status"],
         createdAt: new Date(result.createdAt),
@@ -430,79 +422,79 @@ export default function BillCreation({
           <div className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4">
             <h4 className="text-md font-semibold mb-2">Add Manual Charge</h4>
             <div className="grid grid-cols-5 gap-3 items-end">
-            <div>
-              <input
-                type="text"
-                placeholder="Description"
-                value={newItem.description}
+              <div>
+                <input
+                  type="text"
+                  placeholder="Description"
+                  value={newItem.description}
+                  onChange={(e) =>
+                    handleItemChange("description", e.target.value)
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                {itemErrors.description && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {itemErrors.description}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <input
+                  type="number"
+                  placeholder="Quantity"
+                  value={newItem.quantity ?? 0}
+                  onChange={(e) =>
+                    handleItemChange("quantity", parseInt(e.target.value) || 0)
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                {itemErrors.quantity && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {itemErrors.quantity}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <input
+                  type="number"
+                  placeholder="Rate"
+                  value={newItem.rate ?? 0}
+                  onChange={(e) =>
+                    handleItemChange("rate", parseFloat(e.target.value) || 0)
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                {itemErrors.rate && (
+                  <p className="text-red-500 text-xs mt-1">{itemErrors.rate}</p>
+                )}
+              </div>
+
+              <select
+                value={newItem.category}
                 onChange={(e) =>
-                  handleItemChange("description", e.target.value)
+                  handleItemChange(
+                    "category",
+                    e.target.value as BillItem["category"]
+                  )
                 }
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              {itemErrors.description && (
-                <p className="text-red-500 text-xs mt-1">
-                  {itemErrors.description}
-                </p>
-              )}
+              >
+                <option value="room">Room</option>
+                <option value="meal">Meal</option>
+                <option value="service">Service</option>
+                <option value="other">Other</option>
+              </select>
+
+              <button
+                onClick={handleAddItem}
+                className="flex items-center justify-center gap-1 bg-blue-500 text-white px-2 py-1 rounded"
+              >
+                <Plus size={16} /> Add
+              </button>
             </div>
-
-            <div>
-              <input
-                type="number"
-                placeholder="Quantity"
-                value={newItem.quantity ?? 0}
-                onChange={(e) =>
-                  handleItemChange("quantity", parseInt(e.target.value) || 0)
-                }
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              {itemErrors.quantity && (
-                <p className="text-red-500 text-xs mt-1">
-                  {itemErrors.quantity}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <input
-                type="number"
-                placeholder="Rate"
-                value={newItem.rate ?? 0}
-                onChange={(e) =>
-                  handleItemChange("rate", parseFloat(e.target.value) || 0)
-                }
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              {itemErrors.rate && (
-                <p className="text-red-500 text-xs mt-1">{itemErrors.rate}</p>
-              )}
-            </div>
-
-            <select
-              value={newItem.category}
-              onChange={(e) =>
-                handleItemChange(
-                  "category",
-                  e.target.value as BillItem["category"]
-                )
-              }
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="room">Room</option>
-              <option value="meal">Meal</option>
-              <option value="service">Service</option>
-              <option value="other">Other</option>
-            </select>
-
-            <button
-              onClick={handleAddItem}
-              className="flex items-center justify-center gap-1 bg-blue-500 text-white px-2 py-1 rounded"
-            >
-              <Plus size={16} /> Add
-            </button>
           </div>
-            </div>
         </>
       )}
 
@@ -524,7 +516,7 @@ export default function BillCreation({
               const isCustom = itemAny.source === 'custom';
               const isDiscount = itemAny.source === 'discount';
               const isRemovable = isCustom || isDiscount;
-              
+
               return (
                 <tr key={index} className="border-b">
                   <td className="p-2">{item.description}</td>
@@ -587,13 +579,6 @@ export default function BillCreation({
 
       {/* Totals */}
       <div className="text-right mb-6 mt-6">
-        <p>
-          Pre-Discount Subtotal:{" "}
-          <span className="font-semibold">${preDiscountSubtotal.toFixed(2)}</span>
-        </p>
-        <p>
-          Tax (10%): <span className="font-semibold">${tax.toFixed(2)}</span>
-        </p>
         {discountAmount > 0 && (
           <p className="text-green-600">
             Discount{discountDescription ? ` (${discountDescription})` : ''}: <span className="font-semibold">-${discountAmount.toFixed(2)}</span>

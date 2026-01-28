@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { auth } from "@/app/lib/firebase";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 interface Package {
@@ -15,6 +15,7 @@ interface Package {
     vehicle: string;
     status: string;
     location: string;
+    images?: string[]; // ✅ Added images field
 }
 
 interface AddPackageModalProps {
@@ -42,7 +43,8 @@ export default function AddPackageModal({
         vehicleType: "Car",
         vehicleName: "",
         vehicleCapacity: "4",
-        isActive: true
+        isActive: true,
+        images: [] as string[] // ✅ Added images field
     });
     const [showSuccess, setShowSuccess] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,7 +55,7 @@ export default function AddPackageModal({
     useEffect(() => {
         if (isEditMode && packageData) {
             const durationNum = parseInt(packageData.duration) || 1;
-            
+
             setFormData({
                 packageName: packageData.name,
                 destination: packageData.location,
@@ -64,7 +66,8 @@ export default function AddPackageModal({
                 vehicleType: "Car",
                 vehicleName: packageData.vehicle,
                 vehicleCapacity: "4",
-                isActive: packageData.status === "Active"
+                isActive: packageData.status === "Active",
+                images: packageData.images || [] // ✅ Load images in edit mode
             });
         } else {
             setFormData({
@@ -77,7 +80,8 @@ export default function AddPackageModal({
                 vehicleType: "Car",
                 vehicleName: "",
                 vehicleCapacity: "4",
-                isActive: true
+                isActive: true,
+                images: [] // ✅ Initialize empty images array
             });
         }
     }, [isEditMode, packageData]);
@@ -85,10 +89,10 @@ export default function AddPackageModal({
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
         if (type === 'checkbox') {
-             const checked = (e.target as HTMLInputElement).checked;
-             setFormData(prev => ({ ...prev, [name]: checked }));
+            const checked = (e.target as HTMLInputElement).checked;
+            setFormData(prev => ({ ...prev, [name]: checked }));
         } else {
-             setFormData(prev => ({ ...prev, [name]: value }));
+            setFormData(prev => ({ ...prev, [name]: value }));
         }
     };
 
@@ -111,7 +115,8 @@ export default function AddPackageModal({
             maxParticipants: parseInt(formData.maxParticipants),
             description: formData.description,
             vehicle: formData.vehicleName,
-            status: formData.isActive ? "Active" : "Inactive"
+            status: formData.isActive ? "Active" : "Inactive",
+            images: formData.images // ✅ Include images in payload
         };
 
         try {
@@ -313,6 +318,34 @@ export default function AddPackageModal({
                                     required
                                     disabled={isSubmitting}
                                 />
+                            </div>
+
+                            {/* ✅ Images Section */}
+                            <div>
+                                <label className="block text-sm font-medium text-black mb-1">
+                                    Package Images (Max 4)
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[0, 1, 2, 3].map((index) => (
+                                        <input
+                                            key={index}
+                                            type="url"
+                                            value={formData.images[index] || ""}
+                                            onChange={(e) => {
+                                                const newImages = [...formData.images];
+                                                if (e.target.value) {
+                                                    newImages[index] = e.target.value;
+                                                } else {
+                                                    newImages.splice(index, 1);
+                                                }
+                                                setFormData({ ...formData, images: newImages.filter(Boolean) });
+                                            }}
+                                            placeholder={`Image URL ${index + 1}`}
+                                            disabled={isSubmitting}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                                        />
+                                    ))}
+                                </div>
                             </div>
                         </div>
 

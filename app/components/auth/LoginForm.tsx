@@ -1,12 +1,12 @@
 // app/components/auth/LoginForm.tsx
 "use client";
 
-import React, { useState } from "react";
-import { Eye, EyeOff, Mail, Lock } from "lucide-react";
-import toast from "react-hot-toast";
-import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/app/lib/firebase"; // Correct import path
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { useRouter } from "next/navigation";
+import React, { useState } from "react";
+import toast from "react-hot-toast";
 
 interface LoginFormProps {
   onToggleMode?: () => void;
@@ -32,7 +32,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
       // 1. Firebase Login
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      
+
       // 2. Get Access Token
       const token = await user.getIdToken();
 
@@ -49,9 +49,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
       if (res.ok) {
         const userData = await res.json();
         const role = userData.roles?.[0] || 'customer';
-        
+
         toast.success(`Welcome back, ${userData.name || 'User'}!`);
-        
+
         // 5. Redirect based on Role
         if (role === 'admin') router.push("/dashboard/admin");
         else if (role === 'receptionist') router.push("/dashboard/receptionist");
@@ -71,17 +71,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const demoAccounts = [
-    { email: "admin@hotel.com", password: "admin123", role: "Admin" },
-    { email: "receptionist@hotel.com", password: "reception123", role: "Receptionist" },
-    { email: "customer@example.com", password: "customer123", role: "Customer" },
-  ];
-
-  const fillDemoAccount = (email: string, password: string) => {
-    setEmail(email);
-    setPassword(password);
   };
 
   return (
@@ -147,31 +136,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
           {isLoading ? "Signing in..." : "Sign In"}
         </button>
       </form>
-
-      {/* Demo accounts */}
-      <div className="mt-6">
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-gray-50 text-gray-500">Demo Accounts</span>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          {demoAccounts.map((acc, index) => (
-            <button
-              key={index}
-              onClick={() => fillDemoAccount(acc.email, acc.password)}
-              className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <div className="font-medium text-gray-900">{acc.role}</div>
-              <div className="text-sm text-gray-500">{acc.email}</div>
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Signup toggle */}
       {onToggleMode && (

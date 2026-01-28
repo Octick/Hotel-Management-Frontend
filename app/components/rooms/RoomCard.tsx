@@ -5,13 +5,12 @@ import {
   AlertTriangle,
   Bed,
   CheckCircle,
-  ChevronDown,
   Clock,
   Coffee,
+  Copy,
   Edit,
   Eye,
   LogOut,
-  MapPin,
   Trash2,
   Tv,
   User,
@@ -39,6 +38,8 @@ export interface Room {
   needsCleaning?: boolean;
   cleaningNotes?: string;
   lastCleaned?: Date;
+  images?: string[]; // ✅ Added images field
+  computedStatus?: string; // ✅ Added computed status from backend
 }
 
 export interface Guest {
@@ -269,31 +270,39 @@ function RoomCard({
         };
       case "occupied":
         return {
-          color: "border-red-500 text-red-700",
+          color: "border-blue-500 text-blue-700",
           icon: Users,
           text: "Occupied",
-          bg: "bg-red-50 border-red-200",
+          bg: "bg-blue-50 border-blue-200",
         };
       case "reserved":
         return {
-          color: "border-yellow-500 text-yellow-700",
+          color: "border-amber-500 text-amber-700",
           icon: Clock,
           text: "Reserved",
-          bg: "bg-yellow-50 border-yellow-200",
+          bg: "bg-amber-50 border-amber-200",
         };
+      case "needs cleaning":
       case "cleaning":
         return {
-          color: "border-yellow-500 text-yellow-700",
+          color: "border-red-500 text-red-700",
           icon: AlertTriangle,
-          text: "Cleaning",
-          bg: "bg-yellow-50 border-yellow-200",
+          text: "Needs Cleaning",
+          bg: "bg-red-50 border-red-200",
         };
       case "maintenance":
         return {
-          color: "border-blue-500 text-blue-700",
+          color: "border-purple-500 text-purple-700",
           icon: AlertTriangle,
           text: "Maintenance",
-          bg: "bg-blue-50 border-blue-200",
+          bg: "bg-purple-50 border-purple-200",
+        };
+      case "out of order":
+        return {
+          color: "border-gray-500 text-gray-700",
+          icon: AlertTriangle,
+          text: "Out of Order",
+          bg: "bg-gray-50 border-gray-200",
         };
       default:
         return {
@@ -319,7 +328,7 @@ function RoomCard({
     const t = (tier || "Normal").toLowerCase();
     return t === "deluxe"
       ? { label: "Deluxe", classes: "bg-amber-100 text-amber-800 border-amber-200" }
-      : { label: "Normal", classes: "bg-slate-100 text-slate-800 border-slate-200" };
+      : { label: "Normal", classes: "bg-gray-100 text-gray-800 border-gray-200" };
   };
 
   const getAmenityIcon = (amenity: string) => {
@@ -332,9 +341,14 @@ function RoomCard({
     }
   };
 
-  const statusConfig = getStatusConfig(room.status);
+  // ✅ Use computedStatus if available, otherwise use status
+  const displayStatus = room.computedStatus || room.status;
+  const statusConfig = getStatusConfig(displayStatus);
   const StatusIcon = statusConfig.icon;
   const tierConfig = getTierConfig(room.tier);
+
+  // ✅ Get first image for display
+  const roomImage = room.images && room.images.length > 0 ? room.images[0] : null;
 
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -350,154 +364,187 @@ function RoomCard({
   }, [showDropdown]);
 
   return (
-    <div className={`room-card ${statusConfig.bg} group p-4 rounded-lg border-2 border-gray-800 shadow-sm`}>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center space-x-3">
-          <div className="p-3 rounded-xl">
-            {getRoomTypeIcon(room.type)}
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col h-full">
+      {/* ✅ Room Image Header */}
+      <div className="relative h-36 w-full bg-gray-200">
+        {roomImage ? (
+          <img
+            src={roomImage}
+            alt={roomName}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+            <Bed className="w-16 h-16 text-gray-300" />
           </div>
-          <div>
-            <h3 className="text-xl font-bold text-gray-900">
-              {roomName}
-            </h3>
-            <div className="flex items-center gap-2">
-              <p className="text-sm text-gray-600 font-medium capitalize">
-                Room {roomNum} • {room.type} • Floor {room.floor === 0 ? "Ground" : room.floor}
-              </p>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${tierConfig.classes}`}>
-                {tierConfig.label}
-              </span>
-            </div>
-          </div>
+        )}
+
+        {/* Room Type Badge */}
+        <div className="absolute top-3 right-3 bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider shadow-md">
+          {room.type}
         </div>
 
-        {/* Status Dropdown */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            onClick={() => setShowDropdown(!showDropdown)}
-            className={`flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${statusConfig.color} cursor-pointer`}
-          >
-            <StatusIcon className="h-3 w-3 mr-1" />
+        {/* Tier Badge */}
+        {room.tier === "Deluxe" && (
+          <div className="absolute bottom-3 left-3 bg-gradient-to-r from-amber-400 to-amber-500 text-amber-900 text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider shadow-md flex items-center gap-1.5">
+            ⭐ Deluxe
+          </div>
+        )}
+
+        {/* Image Count Badge */}
+        {room.images && room.images.length > 1 && (
+          <div className="absolute top-3 left-3 bg-black/60 text-white px-2.5 py-1 rounded-full text-xs font-medium">
+            {room.images.length} photos
+          </div>
+        )}
+
+        {/* Status Badge */}
+        <div className="absolute bottom-3 right-3">
+          <div className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusConfig.color} bg-white/95 backdrop-blur-sm flex items-center gap-1`}>
+            <StatusIcon className="h-3 w-3" />
             {statusConfig.text}
-            <ChevronDown className="ml-1 h-3 w-3" />
-          </button>
+          </div>
+        </div>
+      </div>
 
-          {showDropdown && (
-            <div className="absolute right-0 mt-1 w-32 bg-white border rounded-lg shadow-md z-10">
-              {["available", "occupied", "reserved", "cleaning", "maintenance"].map((status) => (
-                <button
-                  key={status}
-                  onClick={() => {
-                    handleStatusChange(roomId!, status);
-                    setShowDropdown(false);
-                  }}
-                  className="block w-full text-left px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 capitalize"
-                >
-                  {status}
-                </button>
+      {/* Content */}
+      <div className="p-4 flex flex-col flex-grow">
+        {/* Room Title & Number */}
+        <div className="mb-3">
+          <h3 className="text-lg font-semibold text-gray-900">{roomName}</h3>
+          <p className="text-xs text-gray-400 font-mono mt-0.5">
+            Room {roomNum} • Floor {room.floor === 0 ? "Ground" : room.floor} • ID: {roomId?.slice(0, 8)}...
+          </p>
+        </div>
+
+        {/* Room Details Grid */}
+        <div className="grid grid-cols-2 gap-3 mb-3 pb-3 border-b border-gray-100">
+          <div className="flex items-center space-x-2">
+            <Users className="w-4 h-4 text-blue-600" />
+            <div>
+              <p className="text-xs text-gray-500 font-semibold">Guests</p>
+              <p className="text-sm font-bold text-gray-900">{room.maxOccupancy}</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Bed className="w-4 h-4 text-blue-600" />
+            <div>
+              <p className="text-xs text-gray-500 font-semibold">Type</p>
+              <p className="text-sm font-bold text-gray-900 capitalize">{room.type}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Amenities List */}
+        {room.amenities && room.amenities.length > 0 && (
+          <div className="mb-3">
+            <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Amenities</p>
+            <div className="flex flex-wrap gap-2">
+              {room.amenities.slice(0, 4).map((amenity, idx) => (
+                <span key={idx} className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-50 text-xs font-medium text-gray-700 border border-gray-200">
+                  {getAmenityIcon(amenity)}
+                  <span className="ml-1">{amenity}</span>
+                </span>
               ))}
+              {room.amenities.length > 4 && (
+                <span className="text-xs text-gray-500 px-2.5 py-1 font-medium">+{room.amenities.length - 4}</span>
+              )}
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Guest Information */}
-      {guest && room.status === "occupied" && (
-        <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <div className="flex items-center space-x-2 mb-2">
-            <User className="h-4 w-4 text-gray-700" />
-            <span className="text-sm font-semibold text-gray-900">Current Guest</span>
           </div>
-          <div className="text-sm text-gray-600 space-y-0.5">
-            <div className="font-medium">{guest.name}</div>
-            <div className="text-xs px-1 py-0.5 bg-white rounded-full inline-block">{guest.email}</div>
+        )}
+
+        {/* Guest Information - if occupied */}
+        {guest && displayStatus.toLowerCase() === "occupied" && (
+          <div className="mb-3 p-2.5 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center space-x-2 mb-1">
+              <User className="h-4 w-4 text-gray-700" />
+              <span className="text-xs font-bold text-gray-900 uppercase tracking-wider">Current Guest</span>
+            </div>
+            <div className="text-sm text-gray-900 font-semibold">{guest.name}</div>
+            <div className="text-xs text-gray-600 mt-1">{guest.email}</div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Room Details */}
-      <div className="space-y-3 mb-4">
-        <div className="flex items-center justify-between text-sm text-gray-600">
-          <span className="font-medium">Rate per night</span>
-          <span className="font-bold text-gray-900">${room.rate}</span>
-        </div>
-        <div className="flex items-center justify-between text-sm text-gray-600">
-          <span className="font-medium">Max occupancy</span>
-          <span className="font-bold text-gray-900">{room.maxOccupancy} guests</span>
-        </div>
-      </div>
-
-      {/* Amenities */}
-      <div className="mb-4">
-        <div className="flex items-center text-sm text-gray-600 mb-2">
-          <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-          <span className="font-semibold">Amenities</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {room.amenities.slice(0, 3).map((amenity, index) => (
-            <div key={index} className="flex items-center space-x-1 text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
-              {getAmenityIcon(amenity)}
-              <span>{amenity}</span>
+        {/* Price and Actions */}
+        <div className="mt-auto pt-3 border-t border-gray-100">
+          <div className="flex items-baseline justify-between mb-3">
+            <div>
+              <p className="text-xs text-gray-500 font-semibold uppercase mb-1">Rate per night</p>
+              <div className="flex items-baseline">
+                <span className="text-xl font-bold text-gray-900">${room.rate}</span>
+                <span className="text-xs font-normal text-gray-500 ml-1">/night</span>
+              </div>
             </div>
-          ))}
-          {room.amenities.length > 3 && (
-            <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-              +{room.amenities.length - 3} more
-            </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {/* Actions */}
-      <div className="flex justify-between items-center space-x-2">
-        <div className="flex-1 flex justify-center">
+          {/* Action Buttons */}
+          <div className="flex flex-wrap gap-2">
+            {/* Make Available */}
+            {(displayStatus.toLowerCase() === "needs cleaning" ||
+              displayStatus.toLowerCase() === "cleaning" ||
+              displayStatus.toLowerCase() === "maintenance") && onStatusChange && (
+                <button
+                  onClick={() => handleStatusChange(roomId!, "Available")}
+                  className="bg-green-100 hover:bg-green-200 text-green-800 border border-green-200 px-3 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-semibold transition"
+                  title="Mark as Available"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Available
+                </button>
+              )}
 
-          {/* ✅ REMOVED: LogIn (Green Enter Icon) button */}
+            {displayStatus.toLowerCase() === "occupied" && onCheckOut && (
+              <button
+                onClick={() => handleCheckOut(room)}
+                className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 px-3 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-semibold transition"
+              >
+                <LogOut className="h-4 w-4" />
+                Check Out
+              </button>
+            )}
 
-          {room.status === "occupied" && onCheckOut && (
-            <button onClick={() => handleCheckOut(room)} className="bg-yellow-100 text-yellow-600 p-2 rounded-lg hover:bg-yellow-200 flex-1 max-w-[50px] flex justify-center">
-              <LogOut className="h-4 w-4" />
-            </button>
-          )}
-
-          {/* ✅ RESTORED: "Make Available" button */}
-          {room.status === "cleaning" && onStatusChange && (
-            <button onClick={() => handleStatusChange(roomId!, "available")} className="bg-green-100 text-green-600 p-2 rounded-lg hover:bg-green-200 flex-1 max-w-[50px] flex justify-center">
-              <CheckCircle className="h-4 w-4" />
-            </button>
-          )}
-
-          {/* ✅ RESTORED: "Mark as Cleaning" button */}
-          {room.status === "available" && onStatusChange && (
-            <button onClick={() => handleStatusChange(roomId!, "cleaning")} className="bg-yellow-100 text-yellow-600 p-2 rounded-lg hover:bg-yellow-200 flex-1 max-w-[50px] flex justify-center">
-              <AlertTriangle className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-
-        <div className="flex-1 flex justify-center space-x-2">
-          {onView && (
-            <button onClick={() => handleView(room)} className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200 flex-1 max-w-[50px] flex justify-center">
+            <button
+              onClick={() => handleView(room)}
+              className="bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-semibold transition"
+              title="View Details"
+            >
               <Eye className="h-4 w-4" />
+              View
             </button>
-          )}
-          {onEdit && (
-            <button onClick={() => handleEdit(room)} className="bg-purple-100 text-purple-600 p-2 rounded-lg hover:bg-purple-200 flex-1 max-w-[50px] flex justify-center">
+
+            <button
+              onClick={() => handleEdit(room)}
+              className="bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-semibold transition"
+              title="Edit Room"
+            >
               <Edit className="h-4 w-4" />
+              Edit
             </button>
-          )}
-          {onDuplicate && (
-            <button onClick={() => onDuplicate(room)} className="bg-indigo-100 text-indigo-600 p-2 rounded-lg hover:bg-indigo-200 flex-1 max-w-[50px] flex justify-center" title="Duplicate Room">
-              <ChevronDown className="h-4 w-4 rotate-90" />
-            </button>
-          )}
-          {/* Delete Button */}
-          {onDelete && (
-            <button onClick={() => handleDelete(room)} className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200 flex-1 max-w-[50px] flex justify-center">
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
+
+            {onDuplicate && (
+              <button
+                onClick={() => onDuplicate(room)}
+                className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-semibold transition"
+                title="Duplicate Room"
+              >
+                <Copy className="h-4 w-4" />
+                Duplicate
+              </button>
+            )}
+
+            {onDelete && (
+              <button
+                onClick={() => handleDelete(room)}
+                className="bg-red-100 hover:bg-red-200 text-red-700 border border-red-200 p-2 rounded-lg flex items-center justify-center transition"
+                title="Delete Room"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

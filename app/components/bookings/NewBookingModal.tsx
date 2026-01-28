@@ -73,6 +73,8 @@ export default function NewBookingModal({
   const [rooms, setRooms] = useState<Room[]>([]);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [calculatedBreakdown, setCalculatedBreakdown] = useState<any>(null);
+  const [isLoadingCalculation, setIsLoadingCalculation] = useState(false);
 
   const [newGuest, setNewGuest] = useState({ name: "", email: "", phone: "" });
 
@@ -90,11 +92,12 @@ export default function NewBookingModal({
       if (!user) return;
       const token = await user.getIdToken();
       const headers = { Authorization: `Bearer ${token}` };
+      const timestamp = new Date().getTime(); // Force fresh fetch
 
       const [usersRes, roomsRes, dealsRes] = await Promise.all([
-        fetch(`${API_URL}/api/users`, { headers }),
-        fetch(`${API_URL}/api/rooms`, { headers }),
-        fetch(`${API_URL}/api/deals`, { headers })
+        fetch(`${API_URL}/api/users?t=${timestamp}`, { headers, cache: 'no-store' }),
+        fetch(`${API_URL}/api/rooms?t=${timestamp}`, { headers, cache: 'no-store' }),
+        fetch(`${API_URL}/api/deals?t=${timestamp}`, { headers, cache: 'no-store' })
       ]);
 
       if (usersRes.ok) setGuests(await usersRes.json());
@@ -169,6 +172,47 @@ export default function NewBookingModal({
       checkAvailability();
     }
   }, [formData.checkIn, formData.checkOut, rooms]);
+
+  // Fetch detailed rate breakdown when room/dates change
+  useEffect(() => {
+    const fetchCalculation = async () => {
+      if (!formData.roomId || !formData.checkIn || !formData.checkOut) {
+        setCalculatedBreakdown(null);
+        return;
+      }
+
+      try {
+        setIsLoadingCalculation(true);
+        const user = auth.currentUser;
+        if (!user) return;
+        const token = await user.getIdToken();
+
+        const res = await fetch(`${API_URL}/api/bookings/calculate-charges`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            roomId: formData.roomId,
+            checkIn: formData.checkIn,
+            checkOut: formData.checkOut
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setCalculatedBreakdown(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch calculation:', error);
+      } finally {
+        setIsLoadingCalculation(false);
+      }
+    };
+
+    fetchCalculation();
+  }, [formData.roomId, formData.checkIn, formData.checkOut]);
 
   const checkAvailability = async () => {
     try {
@@ -461,80 +505,86 @@ export default function NewBookingModal({
                   </svg>
                   Pricing Summary
                 </h4>
-                {(() => {
-                  const checkInDate = new Date(formData.checkIn);
-                  const checkOutDate = new Date(formData.checkOut);
-                  const nights = Math.max(1, Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
-                  const checkInMonth = checkInDate.getMonth();
-                  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-                  const monthlyRates = (selectedRoom as any).monthlyRates || [];
-                  const monthRate = monthlyRates[checkInMonth] || selectedRoom.rate || 0;
+                {isLoadingCalculation ? (
+                  <div className="flex items-center justify-center py-4 text-gray-500">
+                    <div className="animate-spin mr-2 h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                    Calculating rates...
+                  </div>
+                ) : calculatedBreakdown?.rateBreakdown ? (
+                  <div className="space-y-3 text-sm">
+                    {(() => {
+                      const breakdown = calculatedBreakdown.rateBreakdown;
+                      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-                  // Find best deal (auto-applied)
-                  const bestDeal = filteredDeals.reduce<{ deal: Deal | null; rate: number }>((best, deal) => {
-                    const discountPercent = deal.discount || 0;
-                    const dealPrice = deal.price;
-                    // Only use dealPrice if it's explicitly set and greater than 0
-                    const rateWithDeal = typeof dealPrice === 'number' && !isNaN(dealPrice) && dealPrice > 0
-                      ? dealPrice
-                      : monthRate * (1 - discountPercent / 100);
-
-                    if (best.deal === null || rateWithDeal < best.rate) {
-                      return { deal, rate: rateWithDeal };
-                    }
-                    return best;
-                  }, { deal: null, rate: monthRate });
-
-                  const appliedDeal = bestDeal.deal;
-                  const discountPercent = appliedDeal?.discount || 0;
-                  const dealPrice = appliedDeal?.price;
-
-                  let finalRate = monthRate;
-                  if (appliedDeal) {
-                    // Only use dealPrice if it's explicitly set and greater than 0
-                    finalRate = typeof dealPrice === 'number' && !isNaN(dealPrice) && dealPrice > 0
-                      ? dealPrice
-                      : monthRate * (1 - discountPercent / 100);
-                  }
-
-                  const subtotal = monthRate * nights;
-                  const discount = (monthRate - finalRate) * nights;
-                  const total = finalRate * nights;
-
-                  return (
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between items-center text-gray-700">
-                        <span>Room {selectedRoom.roomNumber} • {selectedRoom.type}</span>
-                        <span className="font-medium">{nights} night{nights > 1 ? 's' : ''}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-gray-700">
-                        <span>{monthNames[checkInMonth]} Rate</span>
-                        <span className="font-medium">${monthRate.toFixed(2)}/night</span>
-                      </div>
-                      {appliedDeal && (
+                      return (
                         <>
-                          <div className="flex justify-between items-center text-emerald-600">
-                            <span className="flex items-center gap-1">
-                              <Percent className="h-3 w-3" />
-                              {appliedDeal.dealName} ({discountPercent}% off)
-                            </span>
-                            <span className="font-medium">-${discount.toFixed(2)}</span>
-                          </div>
                           <div className="flex justify-between items-center text-gray-700">
-                            <span>Discounted Rate</span>
-                            <span className="font-medium">${finalRate.toFixed(2)}/night</span>
+                            <span>Room {selectedRoom.roomNumber} • {selectedRoom.type}</span>
+                            <span className="font-medium">{breakdown.totalNights} night{breakdown.totalNights > 1 ? 's' : ''}</span>
+                          </div>
+
+                          {/* Show monthly breakdown details */}
+                          <div className="bg-gray-50 border border-gray-200 rounded p-3 space-y-2">
+                            {breakdown.monthlyBreakdowns.map((month: any, idx: number) => {
+                              const monthName = month.monthName || monthNames[month.month];
+                              const dateStart = idx === 0 ? new Date(formData.checkIn) : new Date(month.year, month.month, 1);
+                              const dateEnd = idx === breakdown.monthlyBreakdowns.length - 1 ? new Date(formData.checkOut) : new Date(month.year, month.month + 1, 0);
+
+                              const startDay = dateStart.getDate();
+                              const endDay = dateEnd.getDate();
+                              const endMonth = dateEnd.getMonth();
+                              const endYear = dateEnd.getFullYear();
+
+                              let dateRange = `${monthName} ${startDay}-${endDay}, ${month.year}`;
+                              if (startDay === 1 && endDay > 27) {
+                                dateRange = `${monthName} ${month.year}`;
+                              }
+
+                              return (
+                                <div key={idx} className="text-xs space-y-1">
+                                  <div className="flex justify-between items-start">
+                                    <span className="font-medium text-gray-700">{dateRange}</span>
+                                    <span className="text-right">
+                                      <div className="font-semibold">${month.subtotal.toFixed(2)}</div>
+                                      <div className="text-gray-500">{month.days} nights @ ${month.rate.toFixed(2)}</div>
+                                    </span>
+                                  </div>
+                                  {month.dealDays > 0 && (
+                                    <div className="flex justify-between pl-2 text-emerald-600 border-l-2 border-emerald-300">
+                                      <span className="text-xs">{month.dealDays} night{month.dealDays > 1 ? 's' : ''} with {month.dealName} ({month.dealDiscount}% off)</span>
+                                      <span className="font-medium">-${(month.dealAmount || 0).toFixed(2)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {breakdown.dealApplied && (
+                            <div className="flex justify-between items-center text-emerald-600 py-2 border-t border-emerald-200">
+                              <span className="flex items-center gap-1">
+                                <Percent className="h-3 w-3" />
+                                {breakdown.dealName}
+                              </span>
+                              <span className="font-medium">-${breakdown.totalDealDiscount.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          <div className="border-t border-blue-200 pt-3 mt-3">
+                            <div className="flex justify-between items-center">
+                              <span className="font-semibold text-gray-900">Total Amount</span>
+                              <span className="text-lg font-bold text-blue-600">${breakdown.total.toFixed(2)}</span>
+                            </div>
                           </div>
                         </>
-                      )}
-                      <div className="border-t border-blue-200 pt-2 mt-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-semibold text-gray-900">Total Amount</span>
-                          <span className="text-lg font-bold text-blue-600">${total.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500 py-4">
+                    Select dates and room to see pricing breakdown
+                  </div>
+                )}
               </div>
             </div>
           )}
