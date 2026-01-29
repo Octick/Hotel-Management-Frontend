@@ -41,8 +41,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
       localStorage.setItem("token", token);
 
       // 4. Fetch User Role from Your Backend
-      // Ensure your backend is running on port 3000
-      const res = await fetch('http://localhost:3000/api/users/me', {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+      const res = await fetch(`${API_URL}/api/users/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 

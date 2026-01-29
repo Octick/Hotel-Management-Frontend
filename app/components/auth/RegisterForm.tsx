@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
-import { User, Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
-import toast from "react-hot-toast";
+import { auth } from "@/app/lib/firebase";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from "@/app/lib/firebase"; 
+import { Eye, EyeOff, Lock, Mail, Phone, User } from "lucide-react";
 import { useRouter } from "next/navigation"; // Added for redirection if needed
+import React, { useState } from "react";
+import toast from "react-hot-toast";
 
 interface RegisterFormProps {
   onToggleMode: () => void;
@@ -60,9 +60,10 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
 
       // 3. Sync User to MongoDB (Backend)
       const token = await user.getIdToken();
-      
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
       // FIX: Added 'uid' to the body because the backend requires it
-      const response = await fetch('http://localhost:3000/api/users/register', {
+      const response = await fetch(`${API_URL}/api/users/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,10 +83,10 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
       }
 
       toast.success("Account created successfully!");
-      
+
       // Option A: Switch to Login view
-      onToggleMode(); 
-      
+      onToggleMode();
+
       // Option B: If you want to auto-redirect to dashboard instead, uncomment below:
       // router.push('/dashboard/customer');
 
