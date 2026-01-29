@@ -1,10 +1,10 @@
 // app/context/AuthContext.tsx
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/app/lib/firebase";
-import { useRouter, usePathname } from "next/navigation";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { usePathname, useRouter } from "next/navigation";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 // Define a frontend interface for the User Profile
 export interface UserProfile {
@@ -27,13 +27,13 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>; // Added function to sync data manually
 }
 
-export const AuthContext = createContext<AuthContextType>({ 
-  user: null, 
+export const AuthContext = createContext<AuthContextType>({
+  user: null,
   profile: null,
-  loading: true, 
+  loading: true,
   role: null,
   token: null,
-  refreshProfile: async () => {} 
+  refreshProfile: async () => { }
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -54,18 +54,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setToken(idToken);
 
       const res = await fetch(`${API_URL}/api/users/me`, {
-          headers: { 
-            'Authorization': `Bearer ${idToken}`,
-            'Content-Type': 'application/json'
-          }
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        }
       });
 
       if (res.ok) {
-          const data: UserProfile = await res.json();
-          setProfile(data);
-          setRole(data.roles?.[0] || 'customer');
+        const data: UserProfile = await res.json();
+        setProfile(data);
+        setRole(data.roles?.[0] || 'customer');
       } else {
-          setRole('customer');
+        setRole('customer');
       }
     } catch (error) {
       console.error("Failed to connect to backend", error);
@@ -101,19 +101,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (loading) return;
 
+    // ✅ IMPORTANT: If a user exists but we haven't got the profile/role yet, WAIT.
+    // This prevents the "default to customer" bug during the transition.
+    if (user && !role) return;
+
     if (!user && pathname.startsWith("/dashboard")) {
-        router.push("/auth");
-        return;
+      router.push("/auth");
+      return;
     }
 
     if (user && role) {
-        if (pathname.startsWith("/dashboard/admin")) {
-            if (role === "receptionist") router.push("/dashboard/receptionist");
-            else if (role === "customer") router.push("/dashboard/customer");
-        }
-        if (pathname.startsWith("/dashboard/receptionist") && role === "customer") {
-            router.push("/dashboard/customer");
-        }
+      if (pathname.startsWith("/dashboard/admin") && role !== "admin") {
+        const target = role === "receptionist" ? "/dashboard/receptionist" : "/dashboard/customer";
+        router.push(target);
+      }
+      if (pathname.startsWith("/dashboard/receptionist") && role === "customer") {
+        router.push("/dashboard/customer");
+      }
     }
   }, [user, loading, role, pathname, router]);
 
@@ -121,8 +125,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return (
       <div className="flex items-center justify-center h-screen w-screen bg-white">
         <div className="flex flex-col items-center gap-3">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
-            <p className="text-gray-500 text-sm font-medium">Loading...</p>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+          <p className="text-gray-500 text-sm font-medium">Loading...</p>
         </div>
       </div>
     );
