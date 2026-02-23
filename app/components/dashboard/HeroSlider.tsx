@@ -175,40 +175,15 @@ export default function HeroSlider({ deals = [] }: HeroSliderProps) {
                         )}
                     </div>
 
-                    {/* Hover Premium Panel */}
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 sm:opacity-0 transition-opacity duration-300">
-                        <div className="absolute inset-0 bg-black/30 pointer-events-none" />
-                        <div
-                            className="absolute bottom-6 left-6 right-6 sm:left-10 sm:right-10 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 sm:p-6 text-white shadow-2xl pointer-events-auto z-20"
-                        >
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                <div>
-                                    <p className="text-xs uppercase tracking-widest text-white/70">Featured</p>
-                                    <h3 className="text-lg sm:text-2xl font-semibold">{slide.title}</h3>
-                                    <p className="text-xs sm:text-sm text-white/80 line-clamp-2">{slide.description}</p>
-                                </div>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDealClick(resolveDealType(slide.rawDeal));
-                                    }}
-                                    className="inline-flex items-center gap-2 rounded-full bg-white text-gray-900 px-5 py-2.5 text-xs sm:text-sm font-semibold hover:bg-white/90"
-                                >
-                                    View Deal
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Mobile Action */}
+                    {/* Action Button */}
                     {slide.type === "deal" && (
-                        <div className="absolute bottom-10 right-4 z-30 sm:hidden">
+                        <div className="absolute bottom-12 right-6 sm:right-10 z-20">
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     handleDealClick(resolveDealType(slide.rawDeal));
                                 }}
-                                className="inline-flex items-center gap-2 rounded-full bg-white text-gray-900 px-4 py-2 text-xs font-semibold shadow-md"
+                                className="inline-flex items-center gap-2 rounded-full bg-white text-gray-900 px-5 py-2.5 text-xs sm:px-6 sm:py-3 sm:text-base font-semibold shadow-md"
                             >
                                 View Deal
                             </button>
