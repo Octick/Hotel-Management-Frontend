@@ -4,14 +4,14 @@ import { getFirestore } from "firebase/firestore";
 
 // 1. New Credentials (from your "hotel-management-2cdb9" project)
 const firebaseConfig = {
-  apiKey: "AIzaSyA3LU39I4MEo2UWl5I2mpRQXYv3mWWNXs4",
-  authDomain: "hotel-management-2cdb9.firebaseapp.com",
-  databaseURL: "https://hotel-management-2cdb9-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "hotel-management-2cdb9",
-  storageBucket: "hotel-management-2cdb9.firebasestorage.app",
-  messagingSenderId: "558302722945",
-  appId: "1:558302722945:web:5cab077a93a3719f528680",
-  measurementId: "G-Q5HR51J8VZ"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
 // 2. Singleton Pattern: Ensures we don't initialize Firebase twice (prevents crashes in Next.js)
